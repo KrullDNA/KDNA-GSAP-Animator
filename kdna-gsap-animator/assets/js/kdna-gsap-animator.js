@@ -1,11 +1,11 @@
 /**
  * KDNA GSAP Animator, the engine.
  *
- * Stage 2: the shared re-init engine plus Effect 1, the side-sliding rows.
- * The engine handles the life cycle: register effects on first load, re-register
- * them on content the seamless scroll injects, tear down stale triggers when
- * content leaves, and recompute on resize. The effects plug into this by calling
- * registerEffect(); Effects 2 and 3 are added in Stages 3 and 4.
+ * Stage 3: the shared re-init engine plus Effect 1 (side-sliding rows) and
+ * Effect 2 (image enlarge). The engine handles the life cycle: register effects
+ * on first load, re-register them on content the seamless scroll injects, tear
+ * down stale triggers when content leaves, and recompute on resize. The effects
+ * plug into this by calling registerEffect(); Effect 3 is added in Stage 4.
  *
  * The single most important requirement of the whole plugin lives here: the
  * animations must rebuild themselves when a new project is appended by the
@@ -573,6 +573,131 @@
 		build: function (el, ctx) {
 			var e1 = ctx.settings.effect1 || {};
 			buildSlider(el, ctx, e1.rightFrom, e1.rightTo);
+		}
+	});
+
+	// Effect 2, image enlarge (grid expand).
+	//
+	// Pins gridEnlarge. The centre image (imgEnlarge) grows in place to fill the
+	// viewport, while the seven outer images (imgGrow1 to imgGrow7) scale up and
+	// fly straight outward off the screen, together. The fly-out is measured from
+	// each image's position so it clears the screen at any size and with any
+	// images, and it recomputes on every refresh.
+
+	// How much the centre must scale to fill the viewport: cover (fill both ways)
+	// on desktop, full device width on mobile (so it ends at full width, not full
+	// height). offsetWidth/Height are layout sizes, unaffected by any transform.
+	function centreFillScale(centre, mobile) {
+		var w  = centre.offsetWidth || 1;
+		var h  = centre.offsetHeight || 1;
+		var vw = window.innerWidth;
+		var vh = window.innerHeight;
+		return mobile ? ( vw / w ) : Math.max( vw / w, vh / h );
+	}
+
+	// The translation that flies one outer image straight out from the centre,
+	// far enough that it fully clears the screen even at its final scale. Worked
+	// out in the grid-centre frame: during the pin the grid centre sits at the
+	// viewport centre, so the screen reaches half a diagonal in every direction;
+	// travelling that plus the image's scaled half-size guarantees it is gone.
+	function flyOut(o, grid, idx, total, outerScale) {
+		var oRect = o.getBoundingClientRect();
+		var gRect = grid.getBoundingClientRect();
+		var relx  = ( oRect.left + oRect.width / 2 ) - ( gRect.left + gRect.width / 2 );
+		var rely  = ( oRect.top + oRect.height / 2 ) - ( gRect.top + gRect.height / 2 );
+		var len   = Math.sqrt( relx * relx + rely * rely );
+
+		var ux, uy;
+		if (len < 1) {
+			// Image sits on the centre: fan the images out evenly by their order.
+			var ang = ( idx / Math.max( 1, total ) ) * Math.PI * 2;
+			ux = Math.cos(ang);
+			uy = Math.sin(ang);
+		} else {
+			ux = relx / len;
+			uy = rely / len;
+		}
+
+		var vw       = window.innerWidth;
+		var vh       = window.innerHeight;
+		var halfDiag = Math.sqrt( vw * vw + vh * vh ) / 2;
+		var maxHalf  = Math.max( o.offsetWidth, o.offsetHeight ) * outerScale / 2;
+		var dist     = halfDiag + maxHalf + Math.max( vw, vh ) * 0.05; // plus a small margin
+
+		return { x: ux * dist, y: uy * dist };
+	}
+
+	function buildEnlarge(grid, ctx) {
+		var e2         = ctx.settings.effect2 || {};
+		var d          = ctx.defaults;
+		var gsap       = ctx.gsap;
+		var outerScale = ( typeof e2.outerScale === 'number' && e2.outerScale > 0 ) ? e2.outerScale : 4;
+
+		var centre = grid.querySelector('.imgEnlarge');
+		var outers = [];
+		for (var i = 1; i <= 7; i++) {
+			var o = grid.querySelector('.imgGrow' + i);
+			if (o) {
+				outers.push(o);
+			}
+		}
+
+		// Mobile clips the outer images (and the grown centre) inside the grid box;
+		// desktop lets them fly across the screen.
+		grid.style.overflow = ctx.isMobile() ? 'hidden' : 'visible';
+
+		var tl = gsap.timeline({
+			scrollTrigger: {
+				trigger: grid,
+				start: e2.start || 'center 50%',     // grid centre at 50 per cent of the viewport
+				end: e2.end || 'center -150%',       // grid centre at -150 per cent, about two screens of pin
+				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				pin: grid,
+				pinSpacing: true,
+				anticipatePin: 1,
+				invalidateOnRefresh: true            // re-measure the fly-out on refresh, inject and resize
+			}
+		});
+
+		// Centre grows in place to fill the viewport. No translation.
+		if (centre) {
+			tl.to(centre, {
+				scale: function () { return centreFillScale(centre, ctx.isMobile()); },
+				transformOrigin: '50% 50%',
+				ease: d.ease || 'sine.inOut',
+				duration: 1
+			}, 0);
+		}
+
+		// Outer images scale up and fly outward together.
+		outers.forEach(function (o, idx) {
+			tl.to(o, {
+				x: function () { return flyOut(o, grid, idx, outers.length, outerScale).x; },
+				y: function () { return flyOut(o, grid, idx, outers.length, outerScale).y; },
+				scale: outerScale,
+				transformOrigin: '50% 50%',
+				ease: d.ease || 'sine.inOut',
+				duration: 1
+			}, 0);
+		});
+
+		ctx.addTimeline(tl);
+
+		// Reset what we touched if this grid is ever torn down.
+		ctx.onCleanup(function () {
+			grid.style.overflow = '';
+			if (centre) { try { gsap.set(centre, { clearProps: 'transform' }); } catch (e) {} }
+			outers.forEach(function (o2) { try { gsap.set(o2, { clearProps: 'transform' }); } catch (e) {} });
+		});
+	}
+
+	registerEffect({
+		name: 'enlarge',
+		selector: '.gridEnlarge',
+		build: buildEnlarge,
+		// Keep the mobile clipping in step with the breakpoint on resize.
+		recompute: function (entry) {
+			entry.el.style.overflow = isMobile() ? 'hidden' : 'visible';
 		}
 	});
 
