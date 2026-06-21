@@ -12,6 +12,16 @@
    Note: rules here deliberately do not rely on .elementor-widget-container, in
    case Elementor's optimised markup is active. */
 
+/* scroll-behavior: smooth makes the browser animate every scroll-position change.
+   That fights ScrollTrigger's scrubbing, and when a pin starts or ends (which
+   nudges the scroll position) the browser smooth-scrolls it, which shows up as the
+   section flashing and "scrolling from the top". This stylesheet only loads on the
+   pages the effects run on, so forcing auto here fixes the pins without changing
+   smooth scrolling anywhere else on the site. */
+html {
+	scroll-behavior: auto !important;
+}
+
 /* The scale-to-width wrapper the engine places around an effect on mobile. It
    clips the scaled content at the screen edges and holds the scaled height so
    the content below is not pushed down. The engine sets its sizing inline, and

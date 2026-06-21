@@ -53,6 +53,21 @@
 
 	gsap.registerPlugin(ScrollTrigger);
 
+	// Page builders and other animation plugins (MotionPage especially) sometimes
+	// put a second copy of GSAP on the page. If so, window.ScrollTrigger may not be
+	// the instance our gsap actually builds pins with, so our refresh, teardown and
+	// getAll would act on an empty copy while the pins live in another (which leaks
+	// triggers and causes jumps). Always use the ScrollTrigger registered with our
+	// gsap.
+	var multipleGsap = false;
+	try {
+		var registeredST = ( gsap.core && gsap.core.globals ) ? gsap.core.globals().ScrollTrigger : null;
+		if (registeredST && registeredST !== ScrollTrigger) {
+			multipleGsap = true;
+			ScrollTrigger = registeredST;
+		}
+	} catch (e) {}
+
 	// Quieten missing-target warnings (an element can leave the page mid-scroll on
 	// a seamless page) and stop ScrollTrigger refreshing on the mobile address bar
 	// showing and hiding, which would fight the no-reflow mobile rule.
@@ -364,6 +379,14 @@
 		note('Engine initialised (v' + (cfg.version || '?') + '). Effects registered: ' +
 			effects.length + ', instances built: ' + built + '.');
 
+		if (DEBUG) {
+			var withTriggers = 0;
+			entries.forEach(function (e) { if (e.triggers.length) { withTriggers++; } });
+			log('GSAP ' + (gsap.version || '?') + ' | ScrollTrigger.getAll()=' + ScrollTrigger.getAll().length +
+				' | instances with a live trigger=' + withTriggers +
+				( multipleGsap ? ' | NOTE: more than one GSAP copy is on the page (now aligned)' : '' ));
+		}
+
 		bindContentAdded();
 		bindObserverFallback();
 		bindResize();
@@ -490,8 +513,11 @@
 			t = setTimeout(function () {
 				t = null;
 				var w = window.innerWidth;
-				if (w === lastWidth) {
-					return; // height-only change, ignore
+				// Ignore small changes: a scrollbar appearing when content loads, a
+				// sub-pixel rounding, or the mobile chrome. Refreshing on those would
+				// snap any in-progress scrub (the "quick movement" at the end).
+				if (Math.abs(w - lastWidth) <= 24) {
+					return;
 				}
 				lastWidth = w;
 				ScrollTrigger.refresh();
