@@ -53,18 +53,23 @@
 
 	gsap.registerPlugin(ScrollTrigger);
 
-	// Page builders and other animation plugins (MotionPage especially) sometimes
-	// put a second copy of GSAP on the page. If so, window.ScrollTrigger may not be
-	// the instance our gsap actually builds pins with, so our refresh, teardown and
-	// getAll would act on an empty copy while the pins live in another (which leaks
-	// triggers and causes jumps). Always use the ScrollTrigger registered with our
-	// gsap.
+	// More than one copy of GSAP/ScrollTrigger can be on a page (MotionPage's SDK
+	// build, other plugins). GSAP builds a timeline's ScrollTrigger with the copy
+	// that registered FIRST (held internally), while window.ScrollTrigger and
+	// gsap.core.globals() can point at a later copy. If we call getAll/refresh/kill
+	// on the wrong copy, our pins are never managed (the "Active ScrollTriggers: 0"
+	// symptom) and they jump. So we ask GSAP directly: build a throwaway trigger
+	// and read the exact ScrollTrigger class off the instance it created.
 	var multipleGsap = false;
 	try {
-		var registeredST = ( gsap.core && gsap.core.globals ) ? gsap.core.globals().ScrollTrigger : null;
-		if (registeredST && registeredST !== ScrollTrigger) {
-			multipleGsap = true;
-			ScrollTrigger = registeredST;
+		var probeTl = gsap.timeline({ scrollTrigger: { trigger: document.body, start: 'top top', end: 'top top' } });
+		var probeST = probeTl && probeTl.scrollTrigger;
+		var probeClass = probeST && probeST.constructor;
+		if (probeST && typeof probeST.kill === 'function') { probeST.kill(); }
+		if (probeTl && typeof probeTl.kill === 'function') { probeTl.kill(); }
+		if (probeClass && typeof probeClass.getAll === 'function') {
+			multipleGsap = ( probeClass !== ScrollTrigger );
+			ScrollTrigger = probeClass; // the copy our pins are really created with
 		}
 	} catch (e) {}
 
