@@ -583,6 +583,12 @@
 	}
 
 	function recomputeAll() {
+		// recomputeAll runs on ScrollTrigger's refreshInit, i.e. on every GLOBAL
+		// refresh. A global refresh snaps any in-progress scrub/pin to the exact
+		// scroll position, so if a slider "jumps" exactly when this logs, the jump
+		// is a global refresh (most often GSAP laying out a newly created pin
+		// spacer), not the scrub smoothing itself.
+		log('Global ScrollTrigger refresh (all triggers recalculated).');
 		entries.forEach(function (entry) {
 			// Re-apply the mobile scale-to-width first, since it changes geometry.
 			if (entry.data && entry.data.scaler) {
@@ -634,7 +640,7 @@
 				end: e1.end || 'bottom -60%',
 				// About one second of smoothing, so the motion glides on after the
 				// scroll stops rather than stopping dead.
-				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				// Re-measure on every refresh, which covers injected content and resize.
 				invalidateOnRefresh: true
 			}
@@ -891,7 +897,7 @@
 				trigger: grid,
 				start: e2.start || 'center 50%',     // grid centre at 50 per cent of the viewport
 				end: e2.end || 'center -150%',       // grid centre at -150 per cent, about two screens of pin
-				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				pin: grid,
 				pinSpacing: true,
 				pinType: resolvePinType(grid),       // transform pinning when a transformed ancestor would break fixed
@@ -1004,7 +1010,7 @@
 				trigger: container,
 				start: e3.start || 'top -1px',       // pin from the container top
 				end: e3.end || 'top -100%',          // about one screen-height of pin
-				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				pin: container,
 				pinSpacing: true,
 				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed
