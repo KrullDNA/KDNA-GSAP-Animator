@@ -137,6 +137,10 @@ class KDNA_GSA_Frontend {
 				'mobileBreakpoint'     => (int) $o['mobile_breakpoint'],
 				'mobileReferenceWidth' => (int) $o['mobile_reference_width'],
 
+				// Pinned effects.
+				'pinType'              => (string) $o['pin_type'],
+				'pinReparent'          => ! empty( $o['pin_reparent'] ),
+
 				// Effect 1, side-sliding rows.
 				'effect1' => array(
 					'leftFrom'  => (float) $o['e1_left_from'],
@@ -156,12 +160,13 @@ class KDNA_GSA_Frontend {
 
 				// Effect 3, diagonal images.
 				'effect3' => array(
-					'start'        => (string) $o['e3_start'],
-					'end'          => (string) $o['e3_end'],
-					'columnTravel' => (float) $o['e3_column_travel'],
-					'featureStart' => (float) $o['e3_feature_start'],
-					'featureScale' => (float) $o['e3_feature_scale'],
-					'colOffsets'   => $this->parse_offsets( $o['e3_col_offsets'] ),
+					'start'             => (string) $o['e3_start'],
+					'end'               => (string) $o['e3_end'],
+					'columnTravel'      => (float) $o['e3_column_travel'],
+					'featureStart'      => (float) $o['e3_feature_start'],
+					'featureScale'      => (float) $o['e3_feature_scale'],
+					'featureStraighten' => ! empty( $o['e3_feature_straighten'] ),
+					'colOffsets'        => $this->parse_offsets( $o['e3_col_offsets'] ),
 				),
 			),
 		);

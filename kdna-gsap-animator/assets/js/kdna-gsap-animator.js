@@ -645,6 +645,110 @@
 		return { x: ux * dist, y: uy * dist };
 	}
 
+	// --- Pinning helpers ---------------------------------------------------
+
+	// Read an element's own rotation (radians) from its computed transform matrix.
+	function readRotationRad(el) {
+		try {
+			var t = window.getComputedStyle(el).transform;
+			if (!t || t === 'none') {
+				return 0;
+			}
+			var m = t.match(/matrix\(([^)]+)\)/);
+			if (m) {
+				var v = m[1].split(',');
+				return Math.atan2(parseFloat(v[1]), parseFloat(v[0]));
+			}
+			var m3 = t.match(/matrix3d\(([^)]+)\)/);
+			if (m3) {
+				var v3 = m3[1].split(',');
+				return Math.atan2(parseFloat(v3[1]), parseFloat(v3[0]));
+			}
+		} catch (e) {}
+		return 0;
+	}
+
+	// The combined rotation of an element's ancestors (radians). The diagonal
+	// layout tilts a parent of the feature, so straightening the feature means
+	// countering this, not just setting the feature's own rotation to zero.
+	function ancestorRotationRad(el) {
+		var r = 0;
+		var node = el.parentElement;
+		var guard = 0;
+		while (node && node !== document.documentElement && guard < 40) {
+			r += readRotationRad(node);
+			node = node.parentElement;
+			guard++;
+		}
+		return r;
+	}
+
+	// Find the first ancestor with a transform, filter, perspective or
+	// will-change:transform. Any of these makes a descendant's position:fixed
+	// resolve against that ancestor instead of the viewport, which is the usual
+	// reason a pinned section jumps or disappears at the ends of its pin.
+	function transformedAncestor(el) {
+		var node = el.parentElement;
+		var guard = 0;
+		while (node && node !== document.documentElement && guard < 40) {
+			var s = window.getComputedStyle(node);
+			if ((s.transform && s.transform !== 'none') ||
+				(s.perspective && s.perspective !== 'none') ||
+				(s.filter && s.filter !== 'none') ||
+				(s.willChange && s.willChange.indexOf('transform') > -1)) {
+				return node;
+			}
+			node = node.parentElement;
+			guard++;
+		}
+		return null;
+	}
+
+	// Decide how to pin: honour the setting, or in auto mode switch to transform
+	// pinning when a transformed ancestor would break the default fixed pinning.
+	function resolvePinType(el) {
+		var pt = settings.pinType || 'auto';
+		if (pt === 'fixed' || pt === 'transform') {
+			return pt;
+		}
+		return transformedAncestor(el) ? 'transform' : 'fixed';
+	}
+
+	// In debug mode, report anything that commonly breaks pinning, so the cause of
+	// a jump or a disappear can be seen at a glance in the console.
+	function diagnosePin(el, label) {
+		if (!DEBUG) {
+			return;
+		}
+		var issues = [];
+		var node = el.parentElement;
+		var guard = 0;
+		while (node && node !== document.documentElement && guard < 40) {
+			var s = window.getComputedStyle(node);
+			var flags = [];
+			if (s.transform && s.transform !== 'none') { flags.push('transform'); }
+			if (s.perspective && s.perspective !== 'none') { flags.push('perspective'); }
+			if (s.filter && s.filter !== 'none') { flags.push('filter'); }
+			if (s.willChange && s.willChange.indexOf('transform') > -1) { flags.push('will-change'); }
+			if (flags.length) { issues.push(describe(node) + ' [' + flags.join(', ') + ']'); }
+			node = node.parentElement;
+			guard++;
+		}
+		var smooth = !!(window.lenis || window.__lenis || window.locomotive ||
+			(window.ScrollSmoother && typeof window.ScrollSmoother.get === 'function' && window.ScrollSmoother.get()));
+		var msg = 'Pin diagnostic for ' + label + ': using pinType "' + resolvePinType(el) + '". ';
+		msg += issues.length
+			? ('Ancestor(s) that break fixed pinning: ' + issues.join('  |  ') + '. Transform pinning handles this; if it still jumps, switch Pin type to Transform, enable Reparent pins, or remove the transform from the ancestor.')
+			: 'No transformed ancestors found above this element.';
+		if (smooth) { msg += ' A smooth-scroll library looks active, which can need a ScrollTrigger scrollerProxy.'; }
+		try {
+			if (window.getComputedStyle(document.documentElement).scrollBehavior === 'smooth') {
+				msg += ' The page uses scroll-behavior:smooth, which can fight scrubbing; consider removing it.';
+			}
+		} catch (e) {}
+		log(msg);
+	}
+
 	function buildEnlarge(grid, ctx) {
 		var e2         = ctx.settings.effect2 || {};
 		var d          = ctx.defaults;
@@ -664,6 +768,8 @@
 		// desktop lets them fly across the screen.
 		grid.style.overflow = ctx.isMobile() ? 'hidden' : 'visible';
 
+		diagnosePin(grid, '.gridEnlarge');
+
 		var tl = gsap.timeline({
 			scrollTrigger: {
 				trigger: grid,
@@ -672,6 +778,8 @@
 				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
 				pin: grid,
 				pinSpacing: true,
+				pinType: resolvePinType(grid),       // transform pinning when a transformed ancestor would break fixed
+				pinReparent: !!ctx.settings.pinReparent,
 				anticipatePin: 1,
 				invalidateOnRefresh: true            // re-measure the fly-out on refresh, inject and resize
 			}
@@ -733,16 +841,23 @@
 	// is measured against the container top. The current translate is added back in
 	// (rather than using a relative "+=" value, which can accumulate across
 	// refreshes) so any rest transform Elementor set is accounted for exactly.
-	function featureMove(feature, container, gsap) {
-		var fRect  = feature.getBoundingClientRect();
-		var cRect  = container.getBoundingClientRect();
-		var vw     = window.innerWidth;
-		var vh     = window.innerHeight;
-		var fcx    = fRect.left + fRect.width / 2;
-		var fcyRel = ( fRect.top + fRect.height / 2 ) - cRect.top;
-		var curX   = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
-		var curY   = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
-		return { x: curX + ( vw / 2 - fcx ), y: curY + ( vh / 2 - fcyRel ) };
+	function featureMove(feature, container, gsap, rot) {
+		var fRect = feature.getBoundingClientRect();
+		var cRect = container.getBoundingClientRect();
+		var vw    = window.innerWidth;
+		var vh    = window.innerHeight;
+		var dx    = vw / 2 - ( fRect.left + fRect.width / 2 );
+		var dy    = vh / 2 - ( ( fRect.top + fRect.height / 2 ) - cRect.top );
+		// Convert the screen-space delta into the feature's (possibly rotated)
+		// parent frame, so a feature sitting inside the angled columns still lands
+		// centred rather than drifting off along the diagonal.
+		var cos = Math.cos( rot || 0 );
+		var sin = Math.sin( rot || 0 );
+		var gx  = dx * cos + dy * sin;
+		var gy  = -dx * sin + dy * cos;
+		var curX = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
+		var curY = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
+		return { x: curX + gx, y: curY + gy };
 	}
 
 	function buildDiagonal(container, ctx) {
@@ -771,6 +886,8 @@
 			container.style.overflow = 'hidden';
 		}
 
+		diagnosePin(container, '.diagImgs');
+
 		var tl = gsap.timeline({
 			scrollTrigger: {
 				trigger: container,
@@ -779,6 +896,8 @@
 				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
 				pin: container,
 				pinSpacing: true,
+				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed
+				pinReparent: !!ctx.settings.pinReparent,
 				anticipatePin: 1,
 				invalidateOnRefresh: true
 			}
@@ -799,13 +918,18 @@
 		});
 
 		// Feature pops out from about halfway, overlapping the column motion:
-		// rotate to horizontal, centre in the viewport and scale to fill.
+		// rotate to horizontal, centre in the viewport and scale to fill. The
+		// diagonal angle is usually on a parent, so straightening means countering
+		// the ancestors' rotation, not just zeroing the feature's own rotation.
 		if (feature) {
+			var straighten = ( e3.featureStraighten !== false );
+			var featRot = function () { return straighten ? ancestorRotationRad(feature) : 0; };
+
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
 			tl.to(feature, {
-				rotation: 0,
-				x: function () { return featureMove(feature, container, gsap).x; },
-				y: function () { return featureMove(feature, container, gsap).y; },
+				rotation: function () { return -featRot() * 180 / Math.PI; },
+				x: function () { return featureMove(feature, container, gsap, featRot()).x; },
+				y: function () { return featureMove(feature, container, gsap, featRot()).y; },
 				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
