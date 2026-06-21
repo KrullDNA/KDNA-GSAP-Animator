@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.2.0
+Version: 1.3.0
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -33,24 +33,30 @@ BUILD STATUS
 Stage 1  Foundation and re-init engine     Done
 Stage 2  Effect 1, side-sliding rows       Done
 Stage 3  Effect 2, image enlarge           Done
-Stage 4  Effect 3, diagonal images         Not started
+Stage 4  Effect 3, diagonal images         Done
 Stage 5  Mobile pass and QA                Not started
 
-This release is Stage 3: it adds Effect 2, the image enlarge, on top of the
-Stage 2 build. It pins gridEnlarge from centre 50% to centre -150% (about two
-screens of pin). The centre image (imgEnlarge) grows in place to fill the
-viewport, while the seven outer images (imgGrow1 to imgGrow7) scale by the
-configured amount and fly straight outward off the screen together. The fly-out
-is measured from each image's position, so it clears the screen at any size and
-with any images, and it recomputes on refresh, inject and resize. On mobile the
-centre ends at full device width (not full height) and the outer images clip
-inside the grid box. Pin start, pin end and outer scale come from the settings
-page. The pin is rebuilt cleanly for injected projects (no duplicate spacers).
+This release is Stage 4: it adds Effect 3, the diagonal images, so all three
+effects are now in. It pins diagImgs from top -1px to top -100% (about one
+screen of pin). The columns (diag1, diag2, ...) drift vertically in alternation
+across the whole pin, while the feature image (diagGrow) starts about halfway,
+pops out of its column, rotates to horizontal and scales to fill the viewport,
+all computed so it lands cleanly on any screen and with any image. At the end
+the section unpins. Column travel, the feature start point and the column
+offsets come from the settings page. On mobile the feature ends at full device
+width (not full height). Registers on load and re-registers on each injected
+project.
 
-Note on pinned effects: the mobile treatment is handled inside the effect (the
-centre fills the width and the box clips the outer images) rather than by the
-transform scale used on the side-sliding rows, because a transform-scaled
-ancestor would break ScrollTrigger pinning.
+Notes on pinned effects (Effects 2 and 3):
+- The mobile treatment is handled inside the effect (computed fills and the
+  Elementor overflow box clip the motion) rather than by the transform scale
+  used on the side-sliding rows, because a transform-scaled ancestor would
+  break ScrollTrigger pinning.
+- The diagonal feature centres exactly when diagGrow can be freely moved (it is
+  a distinct slot in the layout). If it sits inside a column that is itself
+  drifting, the column motion can introduce a small vertical drift during the
+  pop-out; the column offsets and feature start can be tuned to suit, and this
+  is revisited in the Stage 5 QA pass.
 
 FILTERS (for the developer)
 - kdna_gsap_post_types         (array of post types to load the engine on)

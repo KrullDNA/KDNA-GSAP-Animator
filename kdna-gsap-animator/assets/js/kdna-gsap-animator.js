@@ -1,11 +1,11 @@
 /**
  * KDNA GSAP Animator, the engine.
  *
- * Stage 3: the shared re-init engine plus Effect 1 (side-sliding rows) and
- * Effect 2 (image enlarge). The engine handles the life cycle: register effects
- * on first load, re-register them on content the seamless scroll injects, tear
- * down stale triggers when content leaves, and recompute on resize. The effects
- * plug into this by calling registerEffect(); Effect 3 is added in Stage 4.
+ * Stage 4: the shared re-init engine plus all three effects: Effect 1
+ * (side-sliding rows), Effect 2 (image enlarge) and Effect 3 (diagonal images).
+ * The engine handles the life cycle: register effects on first load, re-register
+ * them on content the seamless scroll injects, tear down stale triggers when
+ * content leaves, and recompute on resize. Effects plug in via registerEffect().
  *
  * The single most important requirement of the whole plugin lives here: the
  * animations must rebuild themselves when a new project is appended by the
@@ -699,6 +699,120 @@
 		recompute: function (entry) {
 			entry.el.style.overflow = isMobile() ? 'hidden' : 'visible';
 		}
+	});
+
+	// Effect 3, diagonal images.
+	//
+	// Pins diagImgs. The columns (diag1, diag2, ...) drift vertically in
+	// alternation across the whole pin, while the feature image (diagGrow) starts
+	// about halfway, pops out of its column, rotates to horizontal and scales to
+	// fill the viewport. The diagonal layout, angles, offsets and overflow-hidden
+	// box are all built in Elementor; this only animates the existing elements.
+
+	// How much the feature must scale to fill the viewport: cover on desktop, full
+	// device width on mobile (so it ends at full width, not full height). Uses the
+	// layout size, which is unaffected by the rest rotation or any transform.
+	function featureFillScale(feature, mobile, fallback) {
+		var w = feature.offsetWidth;
+		var h = feature.offsetHeight;
+		if (!w || !h) {
+			return ( typeof fallback === 'number' && fallback > 0 ) ? fallback : 1;
+		}
+		var vw = window.innerWidth;
+		var vh = window.innerHeight;
+		return mobile ? ( vw / w ) : Math.max( vw / w, vh / h );
+	}
+
+	// The absolute translate that centres the feature in the viewport. Worked out
+	// in the container frame: during the pin the container top sits at the viewport
+	// top, so the horizontal target is scroll-independent and the vertical target
+	// is measured against the container top. The current translate is added back in
+	// (rather than using a relative "+=" value, which can accumulate across
+	// refreshes) so any rest transform Elementor set is accounted for exactly.
+	function featureMove(feature, container, gsap) {
+		var fRect  = feature.getBoundingClientRect();
+		var cRect  = container.getBoundingClientRect();
+		var vw     = window.innerWidth;
+		var vh     = window.innerHeight;
+		var fcx    = fRect.left + fRect.width / 2;
+		var fcyRel = ( fRect.top + fRect.height / 2 ) - cRect.top;
+		var curX   = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
+		var curY   = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
+		return { x: curX + ( vw / 2 - fcx ), y: curY + ( vh / 2 - fcyRel ) };
+	}
+
+	function buildDiagonal(container, ctx) {
+		var e3           = ctx.settings.effect3 || {};
+		var d            = ctx.defaults;
+		var gsap         = ctx.gsap;
+		var travel       = ( typeof e3.columnTravel === 'number' ) ? e3.columnTravel : 18;
+		var offsets      = e3.colOffsets || [];
+		var fStart       = ( typeof e3.featureStart === 'number' ) ? Math.min( 0.95, Math.max( 0, e3.featureStart ) ) : 0.5;
+		var fallbackScale = ( typeof e3.featureScale === 'number' ) ? e3.featureScale : 3;
+
+		// Columns diag1, diag2, ... in order, any number of them.
+		var cols = [];
+		for (var i = 1; i <= 12; i++) {
+			var c = container.querySelector('.diag' + i);
+			if (c) {
+				cols.push(c);
+			}
+		}
+		var feature = container.querySelector('.diagGrow');
+
+		var tl = gsap.timeline({
+			scrollTrigger: {
+				trigger: container,
+				start: e3.start || 'top -1px',       // pin from the container top
+				end: e3.end || 'top -100%',          // about one screen-height of pin
+				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				pin: container,
+				pinSpacing: true,
+				anticipatePin: 1,
+				invalidateOnRefresh: true
+			}
+		});
+
+		// Columns drift vertically in alternation, continuously across the pin.
+		// Direction alternates by column order, so one travel value drives any
+		// number of columns. The offsets stagger the resting positions.
+		cols.forEach(function (col, idx) {
+			var dir = ( idx % 2 === 0 ) ? 1 : -1; // diag1 down, diag2 up, diag3 down, ...
+			var off = ( typeof offsets[idx] === 'number' ) ? offsets[idx] : 0;
+			tl.fromTo(
+				col,
+				{ yPercent: off },
+				{ yPercent: off + dir * travel, ease: d.ease || 'sine.inOut', duration: 1 },
+				0
+			);
+		});
+
+		// Feature pops out from about halfway, overlapping the column motion:
+		// rotate to horizontal, centre in the viewport and scale to fill.
+		if (feature) {
+			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
+			tl.to(feature, {
+				rotation: 0,
+				x: function () { return featureMove(feature, container, gsap).x; },
+				y: function () { return featureMove(feature, container, gsap).y; },
+				scale: function () { return featureFillScale(feature, ctx.isMobile(), fallbackScale); },
+				ease: d.ease || 'sine.inOut',
+				duration: 1 - fStart
+			}, fStart);
+		}
+
+		ctx.addTimeline(tl);
+
+		ctx.onCleanup(function () {
+			cols.forEach(function (col) { try { gsap.set(col, { clearProps: 'transform' }); } catch (e) {} });
+			if (feature) { try { gsap.set(feature, { clearProps: 'transform,zIndex' }); } catch (e) {} }
+		});
+	}
+
+	registerEffect({
+		name: 'diagonal',
+		selector: '.diagImgs',
+		build: buildDiagonal
 	});
 
 	// --- Public API --------------------------------------------------------
