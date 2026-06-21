@@ -647,40 +647,72 @@
 
 	// --- Pinning helpers ---------------------------------------------------
 
-	// Read an element's own rotation (radians) from its computed transform matrix.
-	function readRotationRad(el) {
-		try {
-			var t = window.getComputedStyle(el).transform;
-			if (!t || t === 'none') {
-				return 0;
-			}
-			var m = t.match(/matrix\(([^)]+)\)/);
-			if (m) {
-				var v = m[1].split(',');
-				return Math.atan2(parseFloat(v[1]), parseFloat(v[0]));
-			}
-			var m3 = t.match(/matrix3d\(([^)]+)\)/);
-			if (m3) {
-				var v3 = m3[1].split(',');
-				return Math.atan2(parseFloat(v3[1]), parseFloat(v3[0]));
-			}
-		} catch (e) {}
-		return 0;
+	// Parse a computed transform into a 2D affine matrix [a,b,c,d,e,f].
+	function parseMatrix2D(t) {
+		if (!t || t === 'none') {
+			return [1, 0, 0, 1, 0, 0];
+		}
+		var m = t.match(/matrix\(([^)]+)\)/);
+		if (m) {
+			var v = m[1].split(',');
+			return [parseFloat(v[0]), parseFloat(v[1]), parseFloat(v[2]), parseFloat(v[3]), parseFloat(v[4]), parseFloat(v[5])];
+		}
+		var m3 = t.match(/matrix3d\(([^)]+)\)/);
+		if (m3) {
+			var w = m3[1].split(',');
+			// Use the 2D components of the 3D matrix.
+			return [parseFloat(w[0]), parseFloat(w[1]), parseFloat(w[4]), parseFloat(w[5]), parseFloat(w[12]), parseFloat(w[13])];
+		}
+		return [1, 0, 0, 1, 0, 0];
 	}
 
-	// The combined rotation of an element's ancestors (radians). The diagonal
-	// layout tilts a parent of the feature, so straightening the feature means
-	// countering this, not just setting the feature's own rotation to zero.
-	function ancestorRotationRad(el) {
-		var r = 0;
+	// Multiply two 2D affine matrices (A applied after B): screen = A * (B * point).
+	function matMul2D(A, B) {
+		return [
+			A[0] * B[0] + A[2] * B[1],
+			A[1] * B[0] + A[3] * B[1],
+			A[0] * B[2] + A[2] * B[3],
+			A[1] * B[2] + A[3] * B[3],
+			A[0] * B[4] + A[2] * B[5] + A[4],
+			A[1] * B[4] + A[3] * B[5] + A[5]
+		];
+	}
+
+	// The combined transform of an element's ancestors, mapping the element's own
+	// coordinate space to the screen. The diagonal layout rotates (and sometimes
+	// scales) a parent of the feature, so both straightening and centring have to
+	// account for the whole matrix, not just an angle.
+	function ancestorMatrix2D(el) {
+		var M = [1, 0, 0, 1, 0, 0];
 		var node = el.parentElement;
 		var guard = 0;
 		while (node && node !== document.documentElement && guard < 40) {
-			r += readRotationRad(node);
+			var t;
+			try { t = window.getComputedStyle(node).transform; } catch (e) { t = 'none'; }
+			if (t && t !== 'none') {
+				M = matMul2D(parseMatrix2D(t), M); // outer ancestor wraps the inner ones
+			}
 			node = node.parentElement;
 			guard++;
 		}
-		return r;
+		return M;
+	}
+
+	// The rotation (radians) baked into a 2D matrix.
+	function matrixRotationRad(M) {
+		return Math.atan2(M[1], M[0]);
+	}
+
+	// Convert a screen-space delta vector into an element's own coordinate space,
+	// given its ancestor matrix, so a translate applied through rotated/scaled
+	// ancestors still moves the element by the intended screen distance.
+	function matrixInvVec(M, dx, dy) {
+		var a = M[0], b = M[1], c = M[2], d = M[3];
+		var det = a * d - b * c;
+		if (!det) {
+			return { x: dx, y: dy };
+		}
+		return { x: ( d * dx - c * dy ) / det, y: ( -b * dx + a * dy ) / det };
 	}
 
 	// Find the first ancestor with a transform, filter, perspective or
@@ -841,23 +873,18 @@
 	// is measured against the container top. The current translate is added back in
 	// (rather than using a relative "+=" value, which can accumulate across
 	// refreshes) so any rest transform Elementor set is accounted for exactly.
-	function featureMove(feature, container, gsap, rot) {
+	function featureMove(feature, container, gsap, M) {
 		var fRect = feature.getBoundingClientRect();
 		var cRect = container.getBoundingClientRect();
-		var vw    = window.innerWidth;
-		var vh    = window.innerHeight;
-		var dx    = vw / 2 - ( fRect.left + fRect.width / 2 );
-		var dy    = vh / 2 - ( ( fRect.top + fRect.height / 2 ) - cRect.top );
-		// Convert the screen-space delta into the feature's (possibly rotated)
-		// parent frame, so a feature sitting inside the angled columns still lands
-		// centred rather than drifting off along the diagonal.
-		var cos = Math.cos( rot || 0 );
-		var sin = Math.sin( rot || 0 );
-		var gx  = dx * cos + dy * sin;
-		var gy  = -dx * sin + dy * cos;
-		var curX = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
-		var curY = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
-		return { x: curX + gx, y: curY + gy };
+		var dx    = window.innerWidth / 2 - ( fRect.left + fRect.width / 2 );
+		var dy    = window.innerHeight / 2 - ( ( fRect.top + fRect.height / 2 ) - cRect.top );
+		// Convert the screen-space delta into the feature's own coordinate space, so
+		// a feature inside the rotated (and possibly scaled) columns still lands
+		// centred rather than drifting or stopping short.
+		var local = matrixInvVec( M || [1, 0, 0, 1, 0, 0], dx, dy );
+		var curX  = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
+		var curY  = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
+		return { x: curX + local.x, y: curY + local.y };
 	}
 
 	function buildDiagonal(container, ctx) {
@@ -923,13 +950,13 @@
 		// the ancestors' rotation, not just zeroing the feature's own rotation.
 		if (feature) {
 			var straighten = ( e3.featureStraighten !== false );
-			var featRot = function () { return straighten ? ancestorRotationRad(feature) : 0; };
+			var featMatrix = function () { return straighten ? ancestorMatrix2D(feature) : [1, 0, 0, 1, 0, 0]; };
 
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
 			tl.to(feature, {
-				rotation: function () { return -featRot() * 180 / Math.PI; },
-				x: function () { return featureMove(feature, container, gsap, featRot()).x; },
-				y: function () { return featureMove(feature, container, gsap, featRot()).y; },
+				rotation: function () { return -matrixRotationRad(featMatrix()) * 180 / Math.PI; },
+				x: function () { return featureMove(feature, container, gsap, featMatrix()).x; },
+				y: function () { return featureMove(feature, container, gsap, featMatrix()).y; },
 				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
@@ -956,6 +983,78 @@
 		}
 	});
 
+	// --- On-demand diagnostic ----------------------------------------------
+
+	// Run kdnaGsap.diagnose() from the console (ideally while scrolled to a pinned
+	// section) to print everything needed to understand a pin jump or an off-centre
+	// feature: the chosen pin type, the ancestor chain with any transforms, the
+	// feature's ancestor matrix (rotation and scale), and the computed centring.
+	function rectStr(r) {
+		return 'x:' + Math.round(r.left) + ' y:' + Math.round(r.top) + ' w:' + Math.round(r.width) + ' h:' + Math.round(r.height);
+	}
+
+	function styleFlags(el) {
+		var s = window.getComputedStyle(el);
+		var parts = [ 'pos:' + s.position, 'overflow:' + s.overflow ];
+		if (s.transform && s.transform !== 'none') { parts.push('transform:' + s.transform); }
+		if (s.filter && s.filter !== 'none') { parts.push('filter:' + s.filter); }
+		if (s.perspective && s.perspective !== 'none') { parts.push('perspective:' + s.perspective); }
+		if (s.willChange && s.willChange !== 'auto') { parts.push('will-change:' + s.willChange); }
+		return parts.join(', ');
+	}
+
+	function ancestorReport(el) {
+		var lines = [];
+		var node = el.parentElement;
+		var guard = 0;
+		while (node && node !== document.documentElement && guard < 40) {
+			lines.push('   ^ ' + describe(node) + ' { ' + styleFlags(node) + ' }');
+			node = node.parentElement;
+			guard++;
+		}
+		return lines;
+	}
+
+	function diagnose() {
+		var out = ['[KDNA GSAP] diagnose (v' + (cfg.version || '?') + ')'];
+		out.push('viewport: ' + window.innerWidth + 'x' + window.innerHeight + ', mobile:' + isMobile());
+		out.push('html: { ' + styleFlags(document.documentElement) + ' }');
+		out.push('body: { ' + styleFlags(document.body) + ' }');
+		out.push('scroll-behavior: ' + window.getComputedStyle(document.documentElement).scrollBehavior +
+			' | smooth-scroll libs: lenis=' + !!(window.lenis || window.__lenis) +
+			' locomotive=' + !!window.locomotive +
+			' ScrollSmoother=' + !!window.ScrollSmoother);
+		out.push('active ScrollTriggers: ' + ScrollTrigger.getAll().length);
+
+		['.gridEnlarge', '.diagImgs'].forEach(function (sel) {
+			[].slice.call(document.querySelectorAll(sel)).forEach(function (el, i) {
+				out.push('');
+				out.push(sel + ' #' + i + '  pinType=' + resolvePinType(el) + '  rect=' + rectStr(el.getBoundingClientRect()));
+				var bad = transformedAncestor(el);
+				out.push('  transformed ancestor (breaks fixed pinning): ' + ( bad ? describe(bad) : 'none' ));
+				ancestorReport(el).forEach(function (l) { out.push(l); });
+			});
+		});
+
+		[].slice.call(document.querySelectorAll('.diagGrow')).forEach(function (el, i) {
+			var container = el.closest ? el.closest('.diagImgs') : null;
+			var M = ancestorMatrix2D(el);
+			out.push('');
+			out.push('.diagGrow #' + i + '  ancestor rotation=' + ( matrixRotationRad(M) * 180 / Math.PI ).toFixed(2) + 'deg  matrix=[' + M.map(function (n) { return n.toFixed(3); }).join(',') + ']');
+			out.push('  feature rect=' + rectStr(el.getBoundingClientRect()));
+			if (container) {
+				out.push('  container rect=' + rectStr(container.getBoundingClientRect()));
+				var mv = featureMove(el, container, gsap, M);
+				out.push('  computed centring translate: x=' + mv.x.toFixed(1) + ' y=' + mv.y.toFixed(1));
+			}
+			ancestorReport(el).forEach(function (l) { out.push(l); });
+		});
+
+		var text = out.join('\n');
+		if (window.console) { console.log(text); }
+		return text;
+	}
+
 	// --- Public API --------------------------------------------------------
 
 	// Exposed so the effect modules in later stages can register themselves, and
@@ -969,6 +1068,7 @@
 		buildEffectsIn: buildEffectsIn,
 		recomputeAll: recomputeAll,
 		isMobile: isMobile,
+		diagnose: diagnose,
 		getDefaults: function () { return defaults; },
 		getSettings: function () { return settings; },
 		getEffects: function () { return effects; },
