@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.1
+Version: 1.5.2
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -62,13 +62,21 @@ for detailed engine activity in the browser console. The key init and re-init
 lines are always logged so the engine can be confirmed.
 
 TROUBLESHOOTING THE PINNED EFFECTS
-If a pinned effect (image enlarge or diagonal images) jumps, disappears or
-"scrolls from the top" at the ends of its pin, an ancestor element on the page
-(a theme or Elementor wrapper) has a CSS transform, filter or perspective. That
-makes the browser resolve the pin's position:fixed against the ancestor instead
-of the viewport, which breaks the pin. This affects any pinning tool, not just
-this one. With ?kdna_debug=1 the console prints a "Pin diagnostic" line naming
-the offending ancestor.
+Two common environment problems are handled automatically:
+- scroll-behavior: smooth in the page CSS makes the browser animate scroll, which
+  fights scrubbing and flashes the pins. This stylesheet forces scroll-behavior
+  to auto on the pages the effects run on.
+- A second copy of GSAP on the page (for example from MotionPage) would split the
+  pins from the engine's refresh/teardown. The engine detects this and uses the
+  ScrollTrigger registered with the GSAP it builds with. Still, if you no longer
+  use MotionPage, disable it: two animation engines on one page is asking for
+  trouble (and turn off Re-run MotionPage in the seamless scroll settings).
+
+If a pinned effect still jumps, disappears or "scrolls from the top" at the ends
+of its pin, an ancestor element (a theme or Elementor wrapper) has a CSS
+transform, filter or perspective, which makes the browser resolve the pin's
+position:fixed against the ancestor instead of the viewport. With ?kdna_debug=1
+the console prints a "Pin diagnostic" line naming the offending ancestor.
 
 For a full picture, scroll to the pinned section and run kdnaGsap.diagnose() in
 the browser console: it prints the chosen pin type, the ancestor chain with any
