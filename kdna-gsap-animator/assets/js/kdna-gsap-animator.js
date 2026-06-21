@@ -53,31 +53,17 @@
 
 	gsap.registerPlugin(ScrollTrigger);
 
-	// More than one copy of GSAP/ScrollTrigger can be on a page (MotionPage's SDK
-	// build, other plugins). GSAP builds a timeline's ScrollTrigger with the copy
-	// that registered FIRST (held internally), while window.ScrollTrigger and
-	// gsap.core.globals() can point at a later copy. If we call getAll/refresh/kill
-	// on the wrong copy, our pins are never managed (the "Active ScrollTriggers: 0"
-	// symptom) and they jump. So we ask GSAP directly: build a throwaway trigger
-	// and read the exact ScrollTrigger class off the instance it created.
+	// More than one copy of GSAP/ScrollTrigger can be on a page (a smooth-scroll
+	// widget, MotionPage, another plugin). GSAP builds a timeline's ScrollTrigger
+	// with one copy while window.ScrollTrigger can point at another, so getAll,
+	// refresh and teardown would act on an empty copy and the pins would never be
+	// managed (the "Active ScrollTriggers: 0" symptom). We lock onto the real copy
+	// by reading it off the first live effect trigger, in resolveScrollTrigger().
 	var multipleGsap = false;
-	try {
-		var probeTl = gsap.timeline({ scrollTrigger: { trigger: document.body, start: 'top top', end: 'top top' } });
-		var probeST = probeTl && probeTl.scrollTrigger;
-		var probeClass = probeST && probeST.constructor;
-		if (probeST && typeof probeST.kill === 'function') { probeST.kill(); }
-		if (probeTl && typeof probeTl.kill === 'function') { probeTl.kill(); }
-		if (probeClass && typeof probeClass.getAll === 'function') {
-			multipleGsap = ( probeClass !== ScrollTrigger );
-			ScrollTrigger = probeClass; // the copy our pins are really created with
-		}
-	} catch (e) {}
 
 	// Quieten missing-target warnings (an element can leave the page mid-scroll on
-	// a seamless page) and stop ScrollTrigger refreshing on the mobile address bar
-	// showing and hiding, which would fight the no-reflow mobile rule.
+	// a seamless page).
 	gsap.config({ nullTargetWarn: false });
-	ScrollTrigger.config({ ignoreMobileResize: true });
 
 	// --- Shared defaults ---------------------------------------------------
 
@@ -352,6 +338,37 @@
 		}, (delay == null) ? 150 : delay);
 	}
 
+	// --- Resolve the right ScrollTrigger copy ------------------------------
+
+	// When a second copy of GSAP is on the page (a smooth-scroll widget, another
+	// plugin), window.ScrollTrigger may not be the copy our pins are actually built
+	// with, so getAll/refresh/teardown would do nothing and the pins would never be
+	// managed (the "Active ScrollTriggers: 0" symptom). We read the real copy off
+	// the first live effect trigger and use it from then on, attaching our refresh
+	// hook and config to it. Runs once, as soon as a trigger exists.
+	var stResolved = false;
+	function resolveScrollTrigger() {
+		if (stResolved) {
+			return;
+		}
+		for (var i = 0; i < entries.length; i++) {
+			var t = entries[i].triggers[0];
+			if (t && t.constructor && typeof t.constructor.getAll === 'function') {
+				stResolved = true;
+				if (t.constructor !== ScrollTrigger) {
+					// A different copy builds our pins than the one on window. Switch
+					// to it and move our config and refresh hook across.
+					multipleGsap = true;
+					ScrollTrigger = t.constructor;
+					try { ScrollTrigger.config({ ignoreMobileResize: true }); } catch (e) {}
+					ScrollTrigger.addEventListener('refreshInit', recomputeAll);
+					log('Re-aligned to the ScrollTrigger our pins use (a second GSAP copy is on the page).');
+				}
+				return;
+			}
+		}
+	}
+
 	// --- Re-init -----------------------------------------------------------
 
 	// The core re-init used for injected content: drop stale triggers, wire the
@@ -359,6 +376,7 @@
 	function reinit(root, reason) {
 		teardownStale();
 		var built = buildEffectsIn(root || document);
+		resolveScrollTrigger();
 		scheduleRefresh();
 		note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
 		return built;
@@ -373,12 +391,14 @@
 		}
 		started = true;
 
-		// Re-apply the mobile scaling and any effect recompute at the start of every
-		// refresh (first load, image load, resize and our own refreshes), so
-		// ScrollTrigger always measures the up-to-date, correctly scaled geometry.
+		// Re-apply mobile scaling and effect recompute at the start of every refresh
+		// (first load, image load, resize). Attached now; if a second GSAP copy is
+		// found, resolveScrollTrigger() re-attaches it to the correct copy as well.
+		ScrollTrigger.config({ ignoreMobileResize: true });
 		ScrollTrigger.addEventListener('refreshInit', recomputeAll);
 
 		var built = buildEffectsIn(document);
+		resolveScrollTrigger(); // switch to the copy our pins are really built with
 		scheduleRefresh(0);
 
 		note('Engine initialised (v' + (cfg.version || '?') + '). Effects registered: ' +
@@ -389,7 +409,8 @@
 			entries.forEach(function (e) { if (e.triggers.length) { withTriggers++; } });
 			log('GSAP ' + (gsap.version || '?') + ' | ScrollTrigger.getAll()=' + ScrollTrigger.getAll().length +
 				' | instances with a live trigger=' + withTriggers +
-				( multipleGsap ? ' | NOTE: more than one GSAP copy is on the page (now aligned)' : '' ));
+				( multipleGsap ? ' | NOTE: more than one GSAP copy on the page (now aligned)' : '' ) +
+				' | ScrollSmoother active=' + !!( window.ScrollSmoother && window.ScrollSmoother.get && window.ScrollSmoother.get() ));
 		}
 
 		bindContentAdded();
@@ -827,9 +848,11 @@
 			}
 		}
 
-		// Mobile clips the outer images (and the grown centre) inside the grid box;
-		// desktop lets them fly across the screen.
-		grid.style.overflow = ctx.isMobile() ? 'hidden' : 'visible';
+		// Clip the grid at all sizes so flown-out images cannot bleed out behind
+		// other content (and on mobile the grown centre is contained in the box).
+		// The outer images fly to the edges of the grid box rather than across the
+		// whole screen, which keeps the effect tidy inside its own frame.
+		grid.style.overflow = 'hidden';
 
 		diagnosePin(grid, '.gridEnlarge');
 
@@ -884,9 +907,9 @@
 		name: 'enlarge',
 		selector: '.gridEnlarge',
 		build: buildEnlarge,
-		// Keep the mobile clipping in step with the breakpoint on resize.
+		// Keep the grid clipped (re-asserted on refresh in case anything cleared it).
 		recompute: function (entry) {
-			entry.el.style.overflow = isMobile() ? 'hidden' : 'visible';
+			entry.el.style.overflow = 'hidden';
 		}
 	});
 
