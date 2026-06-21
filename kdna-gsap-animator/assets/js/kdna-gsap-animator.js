@@ -363,6 +363,35 @@
 		}, 150);
 	}
 
+	// --- Scroll-idle gate --------------------------------------------------
+
+	// Building injected content, above all a pinned effect, makes GSAP lay out a
+	// pin spacer and run its own GLOBAL refresh, which re-syncs every scrubbed
+	// slider to the scrollbar in one step. Done while a slider is still gliding
+	// after the scroll, that re-sync is seen as a sudden jump at the end of the
+	// glide (the reported side-sliding-rows jump). The refresh itself is
+	// unavoidable, so instead we hold the build until scrolling has been quiet for
+	// a moment: at rest every scrub already sits on its scroll-mapped position, so
+	// the same refresh moves nothing on screen. Before the first scroll we build
+	// straight away, since the page is at the top with nothing gliding.
+	var lastScrollAt = 0;
+	function nowMs() {
+		return ( window.performance && window.performance.now ) ? window.performance.now() : Date.now();
+	}
+	window.addEventListener('scroll', function () { lastScrollAt = nowMs(); }, { passive: true });
+
+	function whenScrollIdle(fn, quiet) {
+		quiet = ( quiet == null ) ? 180 : quiet;
+		(function check() {
+			var gap = nowMs() - lastScrollAt;
+			if (!lastScrollAt || gap >= quiet) {
+				fn();
+			} else {
+				setTimeout(check, Math.max(16, quiet - gap));
+			}
+		})();
+	}
+
 	// --- Resolve the right ScrollTrigger copy ------------------------------
 
 	// When a second copy of GSAP is on the page (a smooth-scroll widget, another
@@ -400,15 +429,21 @@
 	// new content only, then refresh just the new triggers (never the whole page,
 	// so existing effects are not snapped).
 	function reinit(root, reason) {
-		teardownStale();
-		var before = entries.length;
-		var built = buildEffectsIn(root || document);
-		resolveScrollTrigger();
-		for (var i = before; i < entries.length; i++) {
-			entries[i].triggers.forEach(function (st) { pendingNewTriggers.push(st); });
-		}
-		scheduleNewRefresh();
-		note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
+		var built = 0;
+		// Wait for the scroll to settle before touching the DOM, so the global
+		// refresh GSAP runs when an injected pin spacer is created lands while the
+		// sliders are at rest and snaps nothing (see the scroll-idle gate above).
+		whenScrollIdle(function () {
+			teardownStale();
+			var before = entries.length;
+			built = buildEffectsIn(root || document);
+			resolveScrollTrigger();
+			for (var i = before; i < entries.length; i++) {
+				entries[i].triggers.forEach(function (st) { pendingNewTriggers.push(st); });
+			}
+			scheduleNewRefresh();
+			note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
+		});
 		return built;
 	}
 
