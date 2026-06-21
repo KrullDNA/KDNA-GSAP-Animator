@@ -1,62 +1,54 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.3.0
+Version: 1.4.0
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
 WHAT IT DOES
-Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger, tuned
-from one settings page. It is built to rebuild its animations when a new project
-is injected into the page by the KDNA Seamless Portfolio Scroll, so every effect
-fires on AJAX-loaded content as well as on first load.
+Runs KDNA's three scroll-driven portfolio animations on GSAP and ScrollTrigger,
+tuned from one settings page. It is built to rebuild its animations when a new
+project is injected into the page by the KDNA Seamless Portfolio Scroll, so every
+effect fires on AJAX-loaded content as well as on first load. It animates
+Elementor containers that already carry the effect classes; it adds no markup of
+its own and has no front-end widget.
 
-The plugin animates Elementor containers that already carry the effect classes.
-It adds no markup of its own and has no front-end widget.
-
-THE THREE EFFECTS (added across the build stages)
-1. Side-sliding rows   imgSliderLeft, imgSliderRight
-2. Image enlarge       gridEnlarge, imgEnlarge, imgGrow1 to imgGrow7
-3. Diagonal images     diagImgs, diag1 to diag4, diagGrow
+THE THREE EFFECTS
+1. Side-sliding rows  imgSliderLeft, imgSliderRight
+   Two full-width rows drift sideways in opposite directions as the page scrolls.
+   Scrubbed, not pinned, reversing on the way back up.
+2. Image enlarge      gridEnlarge, imgEnlarge, imgGrow1 to imgGrow7
+   Pins the grid. The centre image grows to fill the screen while the outer
+   images scale up and fly outward off the screen together.
+3. Diagonal images    diagImgs, diag1 to diag4, diagGrow
+   Pins the section. The columns drift vertically in alternation, then the
+   feature image pops out, rotates to horizontal and scales to fill the screen.
 
 WHERE IT RUNS
 Single pages of the configured post types (default: portfolio), the same pages
 the seamless scroll runs on. The engine then wires only elements that carry an
-effect class, so it costs nothing on pages without one. Adjust the post types,
-or force loading on or off, from the settings page and the filters below.
+effect class, so it costs nothing on pages without one.
 
 SETTINGS
 Settings > KDNA GSAP Animator. Every value that shapes the effects is here:
-smoothing, ease, the mobile breakpoint, and each effect's from and to, trigger
-start and end, scale and offsets. The defaults match the agreed behaviour.
+smoothing, ease, the mobile breakpoint and reference width, and each effect's
+from and to, trigger start and end, scale, travel and offsets. The defaults match
+the agreed behaviour, so it works out of the box. After saving, run Elementor >
+Tools > Regenerate CSS & Data and clear your page cache.
 
-BUILD STATUS
-Stage 1  Foundation and re-init engine     Done
-Stage 2  Effect 1, side-sliding rows       Done
-Stage 3  Effect 2, image enlarge           Done
-Stage 4  Effect 3, diagonal images         Done
-Stage 5  Mobile pass and QA                Not started
+MOBILE
+At the phone breakpoint (tablet behaves as desktop) the whole composition keeps
+its desktop proportions and is scaled to the device width, with no responsive
+reflow, and the motion is clipped to its box. The non-pinned rows use a transform
+scale (see Desktop reference width); the pinned effects compute their fills to the
+device width and clip in their box, because a transform-scaled ancestor would
+break ScrollTrigger pinning. The result is consistent across the three.
 
-This release is Stage 4: it adds Effect 3, the diagonal images, so all three
-effects are now in. It pins diagImgs from top -1px to top -100% (about one
-screen of pin). The columns (diag1, diag2, ...) drift vertically in alternation
-across the whole pin, while the feature image (diagGrow) starts about halfway,
-pops out of its column, rotates to horizontal and scales to fill the viewport,
-all computed so it lands cleanly on any screen and with any image. At the end
-the section unpins. Column travel, the feature start point and the column
-offsets come from the settings page. On mobile the feature ends at full device
-width (not full height). Registers on load and re-registers on each injected
-project.
-
-Notes on pinned effects (Effects 2 and 3):
-- The mobile treatment is handled inside the effect (computed fills and the
-  Elementor overflow box clip the motion) rather than by the transform scale
-  used on the side-sliding rows, because a transform-scaled ancestor would
-  break ScrollTrigger pinning.
-- The diagonal feature centres exactly when diagGrow can be freely moved (it is
-  a distinct slot in the layout). If it sits inside a column that is itself
-  drifting, the column motion can introduce a small vertical drift during the
-  pop-out; the column offsets and feature start can be tuned to suit, and this
-  is revisited in the Stage 5 QA pass.
+INTEGRATION WITH THE SEAMLESS SCROLL
+The engine listens for the kdna:content-added event the seamless scroll
+dispatches after appending a project, and reads the new project from
+event.detail.container. A MutationObserver is kept as a fallback for when that
+event is not dispatched. New content is wired in isolation, stale triggers are
+killed, pins are rebuilt cleanly (never duplicated), and one refresh is run.
 
 FILTERS (for the developer)
 - kdna_gsap_post_types         (array of post types to load the engine on)
@@ -64,23 +56,31 @@ FILTERS (for the developer)
 - kdna_gsap_content_selectors  (array of selectors for the content wrapper, used
                                 to place the MutationObserver fallback)
 
-INTEGRATION WITH THE SEAMLESS SCROLL
-The engine listens for the kdna:content-added event the seamless scroll
-dispatches after appending a project, and reads the new project from
-event.detail.container. A MutationObserver is kept as a fallback for when that
-event is not dispatched (the seamless scroll only fires it when its own re-init
-setting is on). New content is wired in isolation, stale triggers are killed,
-and a single ScrollTrigger.refresh() is run.
-
 DEBUGGING
-Add ?kdna_debug=1 to a portfolio URL, or tick Debug logging on the settings
-page, to see detailed engine activity in the browser console (F12). The key init
-and re-init lines are always logged so the engine can be confirmed.
+Add ?kdna_debug=1 to a portfolio URL, or tick Debug logging on the settings page,
+for detailed engine activity in the browser console. The key init and re-init
+lines are always logged so the engine can be confirmed.
+
+TESTING CHECKLIST (per the brief)
+[ ] Plugin activates with no errors.
+[ ] Each effect animates correctly on a normal page load.
+[ ] Each effect re-fires correctly after a project loads in via the seamless
+    scroll, on every injected project.
+[ ] Scrolling back up reverses the motion smoothly.
+[ ] Pinned effects pin and unpin cleanly, with no jump or duplicate spacer.
+[ ] Mobile: the whole animation is scaled to the device width and clips
+    correctly, with no responsive reflow.
+[ ] Resize the window: the effects recompute without breaking.
+[ ] No JavaScript console errors and no PHP notices.
+After each update, run Elementor > Tools > Regenerate CSS & Data and hard refresh.
 
 BUNDLED LIBRARIES
-GSAP 3.15.0 and ScrollTrigger 3.15.0, bundled locally under assets/js. Used
-under the GreenSock standard no-charge licence (https://gsap.com/standard-license).
+GSAP 3.15.0 and ScrollTrigger 3.15.0, bundled locally under assets/js. Used under
+the GreenSock standard no-charge licence (https://gsap.com/standard-license).
 
-AFTER UPDATING
-Run Elementor > Tools > Regenerate CSS & Data, and hard refresh (clear WP Rocket
-cache) so the new assets are served.
+BUILD STATUS
+Stage 1  Foundation and re-init engine     Done
+Stage 2  Effect 1, side-sliding rows       Done
+Stage 3  Effect 2, image enlarge           Done
+Stage 4  Effect 3, diagonal images         Done
+Stage 5  Mobile pass, polish and QA        Done

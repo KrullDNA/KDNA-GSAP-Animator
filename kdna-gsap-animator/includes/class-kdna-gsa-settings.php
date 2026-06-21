@@ -140,6 +140,7 @@ class KDNA_GSA_Settings {
 		<div class="wrap kdna-gsap-settings">
 			<h1><?php esc_html_e( 'KDNA GSAP Animator', 'kdna-gsap-animator' ); ?></h1>
 			<p><?php esc_html_e( 'Tune the three scroll-driven portfolio effects. The defaults match the agreed behaviour, so you can leave everything as it is and adjust from here. Values are shared across every element that carries an effect class.', 'kdna-gsap-animator' ); ?></p>
+			<p class="description"><?php esc_html_e( 'After saving, run Elementor > Tools > Regenerate CSS & Data and clear your page cache so the changes show.', 'kdna-gsap-animator' ); ?></p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( self::GROUP ); ?>

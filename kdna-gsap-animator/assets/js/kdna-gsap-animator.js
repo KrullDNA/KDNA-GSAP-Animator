@@ -1,11 +1,18 @@
 /**
  * KDNA GSAP Animator, the engine.
  *
- * Stage 4: the shared re-init engine plus all three effects: Effect 1
- * (side-sliding rows), Effect 2 (image enlarge) and Effect 3 (diagonal images).
- * The engine handles the life cycle: register effects on first load, re-register
- * them on content the seamless scroll injects, tear down stale triggers when
- * content leaves, and recompute on resize. Effects plug in via registerEffect().
+ * The shared re-init engine plus all three effects: Effect 1 (side-sliding
+ * rows), Effect 2 (image enlarge) and Effect 3 (diagonal images). The engine
+ * handles the life cycle: register effects on first load, re-register them on
+ * content the seamless scroll injects, tear down stale triggers when content
+ * leaves, and recompute on resize. Effects plug in via registerEffect().
+ *
+ * Mobile (all effects, at the phone breakpoint; tablet behaves as desktop): the
+ * composition keeps its desktop proportions and is scaled to the device width
+ * with no responsive reflow, and motion is clipped to its box. The non-pinned
+ * rows use a transform scale wrapper; the pinned effects compute their fills to
+ * the device width and clip in their box, because a transform-scaled ancestor
+ * would break ScrollTrigger pinning. The result is consistent across the three.
  *
  * The single most important requirement of the whole plugin lives here: the
  * animations must rebuild themselves when a new project is appended by the
@@ -427,6 +434,11 @@
 	// wired. This keeps the observer from reacting to GSAP's own pin-spacer DOM
 	// changes, whose effect elements are already flagged.
 	function isProcessable(node) {
+		// Never react to GSAP's own pin spacers (inserted when we pin an element),
+		// so the observer cannot loop on our own DOM changes.
+		if (node.classList && node.classList.contains('pin-spacer')) {
+			return false;
+		}
 		if (node.classList && node.classList.contains('kdna-sps-panel')) {
 			return true;
 		}
@@ -584,12 +596,18 @@
 	// each image's position so it clears the screen at any size and with any
 	// images, and it recomputes on every refresh.
 
-	// How much the centre must scale to fill the viewport: cover (fill both ways)
+	// How much an element must scale to fill the viewport: cover (fill both ways)
 	// on desktop, full device width on mobile (so it ends at full width, not full
-	// height). offsetWidth/Height are layout sizes, unaffected by any transform.
-	function centreFillScale(centre, mobile) {
-		var w  = centre.offsetWidth || 1;
-		var h  = centre.offsetHeight || 1;
+	// height). Shared by the centre image (Effect 2) and the feature (Effect 3),
+	// so the mobile fill is identical across the effects. offsetWidth/Height are
+	// layout sizes, unaffected by any rest rotation or transform. Falls back if the
+	// element cannot be measured yet.
+	function fillScale(el, mobile, fallback) {
+		var w = el.offsetWidth;
+		var h = el.offsetHeight;
+		if (!w || !h) {
+			return ( typeof fallback === 'number' && fallback > 0 ) ? fallback : 1;
+		}
 		var vw = window.innerWidth;
 		var vh = window.innerHeight;
 		return mobile ? ( vw / w ) : Math.max( vw / w, vh / h );
@@ -662,7 +680,7 @@
 		// Centre grows in place to fill the viewport. No translation.
 		if (centre) {
 			tl.to(centre, {
-				scale: function () { return centreFillScale(centre, ctx.isMobile()); },
+				scale: function () { return fillScale(centre, ctx.isMobile()); },
 				transformOrigin: '50% 50%',
 				ease: d.ease || 'sine.inOut',
 				duration: 1
@@ -709,20 +727,6 @@
 	// fill the viewport. The diagonal layout, angles, offsets and overflow-hidden
 	// box are all built in Elementor; this only animates the existing elements.
 
-	// How much the feature must scale to fill the viewport: cover on desktop, full
-	// device width on mobile (so it ends at full width, not full height). Uses the
-	// layout size, which is unaffected by the rest rotation or any transform.
-	function featureFillScale(feature, mobile, fallback) {
-		var w = feature.offsetWidth;
-		var h = feature.offsetHeight;
-		if (!w || !h) {
-			return ( typeof fallback === 'number' && fallback > 0 ) ? fallback : 1;
-		}
-		var vw = window.innerWidth;
-		var vh = window.innerHeight;
-		return mobile ? ( vw / w ) : Math.max( vw / w, vh / h );
-	}
-
 	// The absolute translate that centres the feature in the viewport. Worked out
 	// in the container frame: during the pin the container top sits at the viewport
 	// top, so the horizontal target is scroll-independent and the vertical target
@@ -760,6 +764,13 @@
 		}
 		var feature = container.querySelector('.diagGrow');
 
+		// Mobile: make sure the box clips the columns and the feature at the phone
+		// breakpoint, matching the other effects. On desktop the Elementor box rules
+		// apply (the diagonal layout already clips), so the inline value stays clear.
+		if (ctx.isMobile()) {
+			container.style.overflow = 'hidden';
+		}
+
 		var tl = gsap.timeline({
 			scrollTrigger: {
 				trigger: container,
@@ -795,7 +806,7 @@
 				rotation: 0,
 				x: function () { return featureMove(feature, container, gsap).x; },
 				y: function () { return featureMove(feature, container, gsap).y; },
-				scale: function () { return featureFillScale(feature, ctx.isMobile(), fallbackScale); },
+				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
 			}, fStart);
@@ -804,6 +815,7 @@
 		ctx.addTimeline(tl);
 
 		ctx.onCleanup(function () {
+			container.style.overflow = '';
 			cols.forEach(function (col) { try { gsap.set(col, { clearProps: 'transform' }); } catch (e) {} });
 			if (feature) { try { gsap.set(feature, { clearProps: 'transform,zIndex' }); } catch (e) {} }
 		});
@@ -812,7 +824,12 @@
 	registerEffect({
 		name: 'diagonal',
 		selector: '.diagImgs',
-		build: buildDiagonal
+		build: buildDiagonal,
+		// Keep the mobile clipping in step with the breakpoint on resize. On desktop
+		// the inline value is cleared so the Elementor box rules apply.
+		recompute: function (entry) {
+			entry.el.style.overflow = isMobile() ? 'hidden' : '';
+		}
 	});
 
 	// --- Public API --------------------------------------------------------
