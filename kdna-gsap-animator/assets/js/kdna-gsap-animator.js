@@ -338,6 +338,31 @@
 		}, (delay == null) ? 150 : delay);
 	}
 
+	// Refresh ONLY specific (newly injected) triggers. A global refresh recalcs
+	// every trigger and snaps any in-progress scrub or pin to its exact position,
+	// which is seen as a jump. Injected content is appended below existing effects,
+	// so existing triggers keep their positions and must be left untouched.
+	var pendingNewTriggers = [];
+	var newRefreshTimer = null;
+	function scheduleNewRefresh() {
+		if (newRefreshTimer) {
+			clearTimeout(newRefreshTimer);
+		}
+		newRefreshTimer = setTimeout(function () {
+			newRefreshTimer = null;
+			var list = pendingNewTriggers.splice(0, pendingNewTriggers.length);
+			var n = 0;
+			list.forEach(function (st) {
+				if (st && typeof st.refresh === 'function') {
+					try { st.refresh(); n++; } catch (e) {}
+				}
+			});
+			if (n) {
+				log('Refreshed ' + n + ' new trigger(s) only; existing animations left untouched.');
+			}
+		}, 150);
+	}
+
 	// --- Resolve the right ScrollTrigger copy ------------------------------
 
 	// When a second copy of GSAP is on the page (a smooth-scroll widget, another
@@ -372,12 +397,17 @@
 	// --- Re-init -----------------------------------------------------------
 
 	// The core re-init used for injected content: drop stale triggers, wire the
-	// new content only, then schedule one refresh.
+	// new content only, then refresh just the new triggers (never the whole page,
+	// so existing effects are not snapped).
 	function reinit(root, reason) {
 		teardownStale();
+		var before = entries.length;
 		var built = buildEffectsIn(root || document);
 		resolveScrollTrigger();
-		scheduleRefresh();
+		for (var i = before; i < entries.length; i++) {
+			entries[i].triggers.forEach(function (st) { pendingNewTriggers.push(st); });
+		}
+		scheduleNewRefresh();
 		note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
 		return built;
 	}
