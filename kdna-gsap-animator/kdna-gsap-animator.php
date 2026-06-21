@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: KDNA GSAP Animator
- * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Stage 1: scaffold, settings page and shared re-init engine (no effects yet).
- * Version: 1.0.0
+ * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Stage 2: shared re-init engine plus Effect 1, the side-sliding rows.
+ * Version: 1.1.0
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.0.0' );
+define( 'KDNA_GSAP_VERSION', '1.1.0' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -33,9 +33,10 @@ function kdna_gsap_default_options() {
 		'debug'             => 0,           // extra console logging (also on with ?kdna_debug=1)
 
 		// Shared engine values.
-		'mobile_breakpoint' => 767,         // phone breakpoint in px; at or below this we scale to width
-		'smoothing'         => 1,           // scrub smoothing in seconds; about one second glides after the scroll stops
-		'ease'              => 'sine.inOut', // GSAP ease, the brief default is Sine.easeInOut
+		'mobile_breakpoint'      => 767,         // phone breakpoint in px; at or below this we scale to width
+		'mobile_reference_width' => 1280,        // desktop width the composition is scaled down from on mobile (0 turns the scaling off)
+		'smoothing'              => 1,           // scrub smoothing in seconds; about one second glides after the scroll stops
+		'ease'                   => 'sine.inOut', // GSAP ease, the brief default is Sine.easeInOut
 
 		// Effect 1, side-sliding image rows (imgSliderLeft, imgSliderRight).
 		'e1_left_from'      => 0,                 // imgSliderLeft start translateX, per cent

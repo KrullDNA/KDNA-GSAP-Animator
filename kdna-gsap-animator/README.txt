@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.0.0
+Version: 1.1.0
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -31,15 +31,18 @@ start and end, scale and offsets. The defaults match the agreed behaviour.
 
 BUILD STATUS
 Stage 1  Foundation and re-init engine     Done
-Stage 2  Effect 1, side-sliding rows       Not started
+Stage 2  Effect 1, side-sliding rows       Done
 Stage 3  Effect 2, image enlarge           Not started
 Stage 4  Effect 3, diagonal images         Not started
 Stage 5  Mobile pass and QA                Not started
 
-This release is Stage 1: the plugin scaffold, the settings page with defaults
-for all three effects, conditional loading of a locally bundled GSAP and
-ScrollTrigger, and the shared re-init engine. No effects are wired yet. On load
-and on each injected project the engine logs a confirmation line to the console.
+This release is Stage 2: it adds Effect 1, the side-sliding rows, on top of the
+Stage 1 engine. imgSliderLeft drifts to -25% and imgSliderRight to +20% as the
+page scrolls, scrubbed with one second of smoothing, not pinned, reversing on
+the way back up. The from and to, trigger start and end, and ease all come from
+the settings page. The effect registers on load and re-registers on each
+injected project. On mobile the whole row is scaled to the device width, keeping
+its desktop proportions, and clipped at the screen edges.
 
 FILTERS (for the developer)
 - kdna_gsap_post_types         (array of post types to load the engine on)

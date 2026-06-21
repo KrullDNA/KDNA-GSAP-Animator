@@ -132,9 +132,10 @@ class KDNA_GSA_Frontend {
 			'settings'         => array(
 
 				// Shared engine values.
-				'smoothing'        => (float) $o['smoothing'],
-				'ease'             => (string) $o['ease'],
-				'mobileBreakpoint' => (int) $o['mobile_breakpoint'],
+				'smoothing'            => (float) $o['smoothing'],
+				'ease'                 => (string) $o['ease'],
+				'mobileBreakpoint'     => (int) $o['mobile_breakpoint'],
+				'mobileReferenceWidth' => (int) $o['mobile_reference_width'],
 
 				// Effect 1, side-sliding rows.
 				'effect1' => array(

@@ -60,9 +60,10 @@ class KDNA_GSA_Settings {
 		$out['debug']      = empty( $in['debug'] ) ? 0 : 1;
 
 		// Shared engine values.
-		$out['mobile_breakpoint'] = max( 320, absint( isset( $in['mobile_breakpoint'] ) ? $in['mobile_breakpoint'] : $d['mobile_breakpoint'] ) );
-		$out['smoothing']         = $this->clean_float( isset( $in['smoothing'] ) ? $in['smoothing'] : $d['smoothing'], 0, 10 );
-		$out['ease']              = sanitize_text_field( isset( $in['ease'] ) && '' !== trim( $in['ease'] ) ? $in['ease'] : $d['ease'] );
+		$out['mobile_breakpoint']      = max( 320, absint( isset( $in['mobile_breakpoint'] ) ? $in['mobile_breakpoint'] : $d['mobile_breakpoint'] ) );
+		$out['mobile_reference_width'] = min( 4000, absint( isset( $in['mobile_reference_width'] ) ? $in['mobile_reference_width'] : $d['mobile_reference_width'] ) );
+		$out['smoothing']              = $this->clean_float( isset( $in['smoothing'] ) ? $in['smoothing'] : $d['smoothing'], 0, 10 );
+		$out['ease']                   = sanitize_text_field( isset( $in['ease'] ) && '' !== trim( $in['ease'] ) ? $in['ease'] : $d['ease'] );
 
 		// Effect 1, side-sliding rows.
 		$out['e1_left_from']  = $this->clean_float( isset( $in['e1_left_from'] ) ? $in['e1_left_from'] : $d['e1_left_from'], -500, 500 );
@@ -190,6 +191,14 @@ class KDNA_GSA_Settings {
 						<td>
 							<input type="number" min="320" max="1200" name="<?php echo esc_attr( self::OPTION ); ?>[mobile_breakpoint]" value="<?php echo esc_attr( $o['mobile_breakpoint'] ); ?>" class="small-text" /> px
 							<p class="description"><?php esc_html_e( 'At or below this width the whole composition is scaled to the device width with no responsive reflow. Above it, tablet and desktop behave the same.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Desktop reference width', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<input type="number" min="0" max="4000" name="<?php echo esc_attr( self::OPTION ); ?>[mobile_reference_width]" value="<?php echo esc_attr( $o['mobile_reference_width'] ); ?>" class="small-text" /> px
+							<p class="description"><?php esc_html_e( 'The desktop width the composition is scaled down from on mobile, so it keeps its desktop proportions. Use the width your effects were designed at. Default: 1280. Set to 0 to switch the mobile scaling off.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 				</table>

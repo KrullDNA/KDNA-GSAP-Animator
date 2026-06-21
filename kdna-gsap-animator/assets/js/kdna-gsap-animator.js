@@ -1,11 +1,11 @@
 /**
  * KDNA GSAP Animator, the engine.
  *
- * Stage 1: the scaffold and the shared re-init engine. No effects are wired yet.
- * The job here is the life cycle: register effects on first load, re-register
+ * Stage 2: the shared re-init engine plus Effect 1, the side-sliding rows.
+ * The engine handles the life cycle: register effects on first load, re-register
  * them on content the seamless scroll injects, tear down stale triggers when
- * content leaves, and recompute on resize. The three effects plug into this in
- * Stages 2 to 4 by calling kdnaGsap.registerEffect().
+ * content leaves, and recompute on resize. The effects plug into this by calling
+ * registerEffect(); Effects 2 and 3 are added in Stages 3 and 4.
  *
  * The single most important requirement of the whole plugin lives here: the
  * animations must rebuild themselves when a new project is appended by the
@@ -67,6 +67,81 @@
 		return window.matchMedia('(max-width: ' + defaults.mobileBreakpoint + 'px)').matches;
 	}
 
+	// --- Mobile scale-to-width ---------------------------------------------
+
+	// Keep the element at a desktop reference width and scale the whole thing down
+	// to the device width, so it plays identically, just smaller, with no
+	// responsive reflow. A wrapper clips the overflow at the screen edges and
+	// holds the scaled height so the content below is not pushed down. The scale
+	// is applied through GSAP so it composes with the effect's own transforms
+	// rather than fighting them. Set the reference width to 0 to switch it off.
+	function createScaler(el) {
+		var refWidth = (typeof settings.mobileReferenceWidth === 'number') ? settings.mobileReferenceWidth : 1280;
+		var wrapper  = null;
+
+		function ensureWrapper() {
+			if (wrapper || !el.parentNode) {
+				return wrapper;
+			}
+			wrapper = document.createElement('div');
+			wrapper.className = 'kdna-gsap-scalefit';
+			el.parentNode.insertBefore(wrapper, el);
+			wrapper.appendChild(el);
+			return wrapper;
+		}
+
+		function enable() {
+			ensureWrapper();
+			if (!wrapper) {
+				return;
+			}
+			el.style.width    = refWidth + 'px';
+			el.style.maxWidth = 'none';
+			var h = el.offsetHeight;              // height measured at the reference width
+			var s = window.innerWidth / refWidth; // scale that maps the reference width to the device width
+			gsap.set(el, { scaleX: s, scaleY: s, transformOrigin: 'left top' });
+			wrapper.style.display  = 'block';
+			wrapper.style.width    = '100%';
+			wrapper.style.overflow = 'hidden';
+			wrapper.style.height   = ( h * s ) + 'px';
+		}
+
+		function disable() {
+			el.style.width    = '';
+			el.style.maxWidth = '';
+			gsap.set(el, { scaleX: 1, scaleY: 1 });
+			if (wrapper) {
+				// display:contents makes the wrapper transparent to layout, so the
+				// desktop behaves exactly as if the wrapper were not there.
+				wrapper.style.display  = 'contents';
+				wrapper.style.width    = '';
+				wrapper.style.overflow = '';
+				wrapper.style.height   = '';
+			}
+		}
+
+		function update() {
+			if (refWidth > 0 && isMobile()) {
+				enable();
+			} else {
+				disable();
+			}
+		}
+
+		function destroy() {
+			disable();
+			if (wrapper && wrapper.parentNode) {
+				wrapper.parentNode.insertBefore(el, wrapper);
+				wrapper.parentNode.removeChild(wrapper);
+				wrapper = null;
+			}
+			try { gsap.set(el, { clearProps: 'transform' }); } catch (e) {}
+		}
+
+		update();
+		return { update: update, destroy: destroy };
+	}
+
 	// --- Effect registry ---------------------------------------------------
 
 	// An effect definition is { name, selector, build(el, ctx), recompute(entry) }.
@@ -116,6 +191,21 @@
 					entry.triggers.push(st);
 				}
 				return st;
+			},
+			// Register a cleanup callback, run when this element is torn down.
+			onCleanup: function (fn) {
+				if (typeof fn === 'function') {
+					entry.cleanups.push(fn);
+				}
+			},
+			// Set up mobile scale-to-width with edge clipping for an element.
+			// Returns a controller; the engine calls update() on resize and the
+			// controller is destroyed automatically on teardown.
+			scaleToWidth: function (target) {
+				var scaler = createScaler(target || entry.el);
+				entry.cleanups.push(scaler.destroy);
+				entry.data.scaler = scaler;
+				return scaler;
 			}
 		};
 	}
@@ -145,13 +235,16 @@
 				if (el.getAttribute(INIT_ATTR)) {
 					return; // already wired, never double-wire
 				}
-				var entry = { effect: def, el: el, triggers: [], timelines: [] };
+				// Flag before building, so any DOM work the effect does (such as
+				// the mobile scale wrapper) cannot make the observer queue it again.
+				el.setAttribute(INIT_ATTR, def.name);
+				var entry = { effect: def, el: el, triggers: [], timelines: [], cleanups: [], data: {} };
 				try {
 					def.build(el, makeContext(entry));
-					el.setAttribute(INIT_ATTR, def.name);
 					entries.push(entry);
 					built++;
 				} catch (e) {
+					el.removeAttribute(INIT_ATTR);
 					log('Build error for', def.name, e);
 				}
 			});
@@ -173,8 +266,14 @@
 		entry.timelines.forEach(function (tl) {
 			try { tl.kill(); } catch (e) {}
 		});
+		// Effect cleanups (such as unwrapping the mobile scale wrapper) run last,
+		// once the animations controlling those elements have stopped.
+		( entry.cleanups || [] ).forEach(function (fn) {
+			try { fn(); } catch (e) {}
+		});
 		entry.triggers.length  = 0;
 		entry.timelines.length = 0;
+		entry.cleanups         = [];
 		if (entry.el && entry.el.removeAttribute) {
 			entry.el.removeAttribute(INIT_ATTR);
 		}
@@ -246,6 +345,11 @@
 			return;
 		}
 		started = true;
+
+		// Re-apply the mobile scaling and any effect recompute at the start of every
+		// refresh (first load, image load, resize and our own refreshes), so
+		// ScrollTrigger always measures the up-to-date, correctly scaled geometry.
+		ScrollTrigger.addEventListener('refreshInit', recomputeAll);
 
 		var built = buildEffectsIn(document);
 		scheduleRefresh(0);
@@ -358,26 +462,38 @@
 
 	// --- Resize ------------------------------------------------------------
 
-	// Debounced. Effects that measure against the viewport recompute here, then we
-	// refresh once. (Mobile keeps its desktop proportions and is scaled to width,
-	// so there is no responsive reflow; this is for genuine size changes.)
+	// Debounced, and only on a width change. Ignoring height-only changes keeps
+	// the mobile address bar showing and hiding from triggering a recalculation,
+	// which honours the no-responsive-reflow rule; genuine resizes and orientation
+	// changes (which change the width) still refresh. The refresh re-applies the
+	// scalers and effect recompute through the refreshInit hook, then ScrollTrigger
+	// measures the new geometry.
 	function bindResize() {
 		var t = null;
+		var lastWidth = window.innerWidth;
 		window.addEventListener('resize', function () {
 			if (t) {
 				clearTimeout(t);
 			}
 			t = setTimeout(function () {
 				t = null;
-				recomputeAll();
+				var w = window.innerWidth;
+				if (w === lastWidth) {
+					return; // height-only change, ignore
+				}
+				lastWidth = w;
 				ScrollTrigger.refresh();
-				log('Resize: recomputed and refreshed.');
+				log('Resize (width changed to ' + w + '): refreshed.');
 			}, 200);
 		}, { passive: true });
 	}
 
 	function recomputeAll() {
 		entries.forEach(function (entry) {
+			// Re-apply the mobile scale-to-width first, since it changes geometry.
+			if (entry.data && entry.data.scaler) {
+				try { entry.data.scaler.update(); } catch (e) {}
+			}
 			if (typeof entry.effect.recompute === 'function') {
 				try {
 					entry.effect.recompute(entry);
@@ -402,6 +518,63 @@
 		}
 		return node.tagName ? node.tagName.toLowerCase() : String(node);
 	}
+
+	// --- Effects -----------------------------------------------------------
+
+	// Effect 1, side-sliding image rows.
+	//
+	// imgSliderLeft (top row) and imgSliderRight (bottom row) are full-width rows,
+	// wider than the viewport, that drift sideways in opposite directions as the
+	// page scrolls down, and reverse on the way back up. Scrubbed, not pinned.
+	// Because the motion is scrubbed to the scrollbar, the reverse is automatic.
+	function buildSlider(el, ctx, fromX, toX) {
+		var e1 = ctx.settings.effect1 || {};
+		var d  = ctx.defaults;
+
+		var tl = ctx.gsap.timeline({
+			scrollTrigger: {
+				trigger: el,
+				// Row top reaches the bottom of the viewport, with the start clamped.
+				start: e1.start || 'clamp(top 100%)',
+				// Row bottom is 60 per cent past the top, end not clamped.
+				end: e1.end || 'bottom -60%',
+				// About one second of smoothing, so the motion glides on after the
+				// scroll stops rather than stopping dead.
+				scrub: ( typeof d.scrub === 'number' ) ? d.scrub : 1,
+				// Re-measure on every refresh, which covers injected content and resize.
+				invalidateOnRefresh: true
+			}
+		});
+
+		tl.fromTo(
+			el,
+			{ xPercent: ( typeof fromX === 'number' ) ? fromX : 0 },
+			{ xPercent: ( typeof toX === 'number' ) ? toX : 0, ease: d.ease || 'sine.inOut' }
+		);
+
+		ctx.addTimeline(tl);
+
+		// Mobile: scale the whole row to the device width and clip at the edges.
+		ctx.scaleToWidth(el);
+	}
+
+	registerEffect({
+		name: 'slider-left',
+		selector: '.imgSliderLeft',
+		build: function (el, ctx) {
+			var e1 = ctx.settings.effect1 || {};
+			buildSlider(el, ctx, e1.leftFrom, e1.leftTo);
+		}
+	});
+
+	registerEffect({
+		name: 'slider-right',
+		selector: '.imgSliderRight',
+		build: function (el, ctx) {
+			var e1 = ctx.settings.effect1 || {};
+			buildSlider(el, ctx, e1.rightFrom, e1.rightTo);
+		}
+	});
 
 	// --- Public API --------------------------------------------------------
 
