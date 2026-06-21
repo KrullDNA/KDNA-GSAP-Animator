@@ -1,0 +1,26 @@
+/* KDNA GSAP Animator
+   Stage 1: the shared mobile and clipping scaffold. The per-effect transforms
+   are added in their own stages (2 to 5); this file holds the pieces they all
+   share, so the look stays consistent.
+
+   Mobile rule (all effects): the whole composition keeps its desktop
+   proportions and is scaled down to the device width, so each animation plays
+   identically, just smaller. Anything that travels outside its box is clipped
+   by the box, so motion happens inside a frame rather than across the screen.
+   This applies at the phone breakpoint only; tablet behaves like desktop.
+
+   Note: rules here deliberately do not rely on .elementor-widget-container, in
+   case Elementor's optimised markup is active. */
+
+/* A utility the effects can opt into to clip travel to a box. */
+.kdna-gsap-clip {
+	overflow: hidden;
+}
+
+/* Phone breakpoint: shared anchor for the scale-to-width treatment. The actual
+   transform-origin and scale per effect are set in Stages 2 to 5, where each
+   effect knows its own box. Kept here so there is a single place that defines
+   the breakpoint behaviour. */
+@media (max-width: 767px) {
+	/* Effects add their scale-to-width rules here in later stages. */
+}
