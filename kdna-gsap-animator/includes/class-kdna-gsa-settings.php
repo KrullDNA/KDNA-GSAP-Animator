@@ -65,6 +65,11 @@ class KDNA_GSA_Settings {
 		$out['smoothing']              = $this->clean_float( isset( $in['smoothing'] ) ? $in['smoothing'] : $d['smoothing'], 0, 10 );
 		$out['ease']                   = sanitize_text_field( isset( $in['ease'] ) && '' !== trim( $in['ease'] ) ? $in['ease'] : $d['ease'] );
 
+		// Pinned effects.
+		$pt = isset( $in['pin_type'] ) ? $in['pin_type'] : $d['pin_type'];
+		$out['pin_type']               = in_array( $pt, array( 'auto', 'fixed', 'transform' ), true ) ? $pt : 'auto';
+		$out['pin_reparent']           = empty( $in['pin_reparent'] ) ? 0 : 1;
+
 		// Effect 1, side-sliding rows.
 		$out['e1_left_from']  = $this->clean_float( isset( $in['e1_left_from'] ) ? $in['e1_left_from'] : $d['e1_left_from'], -500, 500 );
 		$out['e1_left_to']    = $this->clean_float( isset( $in['e1_left_to'] ) ? $in['e1_left_to'] : $d['e1_left_to'], -500, 500 );
@@ -82,9 +87,10 @@ class KDNA_GSA_Settings {
 		$out['e3_start']         = $this->clean_position( isset( $in['e3_start'] ) ? $in['e3_start'] : $d['e3_start'], $d['e3_start'] );
 		$out['e3_end']           = $this->clean_position( isset( $in['e3_end'] ) ? $in['e3_end'] : $d['e3_end'], $d['e3_end'] );
 		$out['e3_column_travel'] = $this->clean_float( isset( $in['e3_column_travel'] ) ? $in['e3_column_travel'] : $d['e3_column_travel'], -200, 200 );
-		$out['e3_feature_start'] = $this->clean_float( isset( $in['e3_feature_start'] ) ? $in['e3_feature_start'] : $d['e3_feature_start'], 0, 1 );
-		$out['e3_feature_scale'] = $this->clean_float( isset( $in['e3_feature_scale'] ) ? $in['e3_feature_scale'] : $d['e3_feature_scale'], 1, 50 );
-		$out['e3_col_offsets']   = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
+		$out['e3_feature_start']      = $this->clean_float( isset( $in['e3_feature_start'] ) ? $in['e3_feature_start'] : $d['e3_feature_start'], 0, 1 );
+		$out['e3_feature_scale']      = $this->clean_float( isset( $in['e3_feature_scale'] ) ? $in['e3_feature_scale'] : $d['e3_feature_scale'], 1, 50 );
+		$out['e3_feature_straighten'] = empty( $in['e3_feature_straighten'] ) ? 0 : 1;
+		$out['e3_col_offsets']        = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
 
 		return $out;
 	}
@@ -204,6 +210,34 @@ class KDNA_GSA_Settings {
 					</tr>
 				</table>
 
+				<h2 class="title"><?php esc_html_e( 'Pinned effects (image enlarge and diagonal images)', 'kdna-gsap-animator' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'These two effects pin the section while they play. If a pinned section jumps, disappears or scrolls from the top at the ends of the pin, an ancestor element on the page (often a theme or Elementor wrapper) has a transform, which breaks the default fixed pinning. Add ?kdna_debug=1 to the page and check the console: the pin diagnostic names the element. The options below resolve it without editing the page.', 'kdna-gsap-animator' ); ?></p>
+				<table class="form-table" role="presentation">
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Pin type', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<select name="<?php echo esc_attr( self::OPTION ); ?>[pin_type]">
+								<option value="auto" <?php selected( $o['pin_type'], 'auto' ); ?>><?php esc_html_e( 'Auto (recommended)', 'kdna-gsap-animator' ); ?></option>
+								<option value="fixed" <?php selected( $o['pin_type'], 'fixed' ); ?>><?php esc_html_e( 'Fixed', 'kdna-gsap-animator' ); ?></option>
+								<option value="transform" <?php selected( $o['pin_type'], 'transform' ); ?>><?php esc_html_e( 'Transform', 'kdna-gsap-animator' ); ?></option>
+							</select>
+							<p class="description"><?php esc_html_e( 'Auto switches to transform pinning when it detects a transformed ancestor (the usual cause of a pinned section jumping or disappearing), and uses fixed otherwise. Force Transform if a jump remains, or Fixed to keep the classic behaviour.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Reparent pins', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[pin_reparent]" value="1" <?php checked( $o['pin_reparent'], 1 ); ?> />
+								<?php esc_html_e( 'Move the pinned section to the page body while it is pinned', 'kdna-gsap-animator' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'A last resort if Transform pinning is not enough. It escapes a transformed ancestor completely, but the section briefly leaves its styling context, so check the look. Leave off unless needed.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
 				<h2 class="title"><?php esc_html_e( 'Effect 1, side-sliding rows', 'kdna-gsap-animator' ); ?></h2>
 				<p class="description"><?php esc_html_e( 'Targets imgSliderLeft (top row) and imgSliderRight (bottom row). Not pinned. The rows drift sideways in opposite directions as the page scrolls.', 'kdna-gsap-animator' ); ?></p>
 				<table class="form-table" role="presentation">
@@ -313,6 +347,17 @@ class KDNA_GSA_Settings {
 						<td>
 							<input type="number" step="0.1" min="1" max="50" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_scale]" value="<?php echo esc_attr( $o['e3_feature_scale'] ); ?>" class="small-text" />
 							<p class="description"><?php esc_html_e( 'How much the feature image scales as it fills the screen. Reference value: 3.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Straighten the feature', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_straighten]" value="1" <?php checked( $o['e3_feature_straighten'], 1 ); ?> />
+								<?php esc_html_e( 'Rotate the feature to truly horizontal as it fills the screen', 'kdna-gsap-animator' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'The diagonal angle is usually set on a parent element, so the feature is straightened by countering that angle. Turn this off only if the feature should keep its diagonal tilt.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 

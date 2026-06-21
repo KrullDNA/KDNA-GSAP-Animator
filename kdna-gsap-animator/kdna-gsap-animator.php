@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KDNA GSAP Animator
  * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Three effects: side-sliding rows, image enlarge and diagonal images, all tuned from one settings page.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.4.0' );
+define( 'KDNA_GSAP_VERSION', '1.5.0' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -38,6 +38,10 @@ function kdna_gsap_default_options() {
 		'smoothing'              => 1,           // scrub smoothing in seconds; about one second glides after the scroll stops
 		'ease'                   => 'sine.inOut', // GSAP ease, the brief default is Sine.easeInOut
 
+		// Pinned effects (image enlarge and diagonal images).
+		'pin_type'               => 'auto',      // auto, fixed or transform; auto uses transform pinning when a transformed ancestor would break fixed pinning
+		'pin_reparent'           => 0,           // move the pinned element to the body during the pin, to escape a transformed ancestor
+
 		// Effect 1, side-sliding image rows (imgSliderLeft, imgSliderRight).
 		'e1_left_from'      => 0,                 // imgSliderLeft start translateX, per cent
 		'e1_left_to'        => -25,               // imgSliderLeft end translateX, per cent
@@ -55,9 +59,10 @@ function kdna_gsap_default_options() {
 		'e3_start'          => 'top -1px',   // pin starts with the container top at -1px
 		'e3_end'            => 'top -100%',  // pin ends with the container top at -100 per cent, about one screen of pin
 		'e3_column_travel'  => 18,           // vertical travel per column, per cent, alternating by column order
-		'e3_feature_start'  => 0.5,          // where the feature pop-out begins, as a fraction of the pin (0 to 1)
-		'e3_feature_scale'  => 3,            // reference scale for the feature image as it fills the screen
-		'e3_col_offsets'    => '0, 0, 0, 0', // resting start offsets that stagger the columns, per cent, one per column
+		'e3_feature_start'      => 0.5,          // where the feature pop-out begins, as a fraction of the pin (0 to 1)
+		'e3_feature_scale'      => 3,            // reference scale for the feature image as it fills the screen
+		'e3_feature_straighten' => 1,            // counter-rotate the feature by its ancestors' angle so it ends truly horizontal
+		'e3_col_offsets'        => '0, 0, 0, 0', // resting start offsets that stagger the columns, per cent, one per column
 	);
 }
 

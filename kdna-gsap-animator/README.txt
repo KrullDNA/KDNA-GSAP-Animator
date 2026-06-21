@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.4.0
+Version: 1.5.0
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -60,6 +60,27 @@ DEBUGGING
 Add ?kdna_debug=1 to a portfolio URL, or tick Debug logging on the settings page,
 for detailed engine activity in the browser console. The key init and re-init
 lines are always logged so the engine can be confirmed.
+
+TROUBLESHOOTING THE PINNED EFFECTS
+If a pinned effect (image enlarge or diagonal images) jumps, disappears or
+"scrolls from the top" at the ends of its pin, an ancestor element on the page
+(a theme or Elementor wrapper) has a CSS transform, filter or perspective. That
+makes the browser resolve the pin's position:fixed against the ancestor instead
+of the viewport, which breaks the pin. This affects any pinning tool, not just
+this one. With ?kdna_debug=1 the console prints a "Pin diagnostic" line naming
+the offending ancestor.
+
+Fixes, in order, from Settings > KDNA GSAP Animator > Pinned effects:
+1. Pin type: Auto (default) detects a transformed ancestor and switches to
+   transform pinning, which is immune to the problem. Force Transform if needed.
+2. Reparent pins: a last resort that moves the section to the body while pinned.
+3. Best of all, remove the transform from the offending ancestor in the theme or
+   Elementor.
+
+DIAGONAL FEATURE STRAIGHTENING
+The diagonal angle is normally set on a parent of the feature image, so the
+feature is straightened by countering that parent angle (Settings > Effect 3 >
+Straighten the feature, on by default), not by zeroing its own rotation.
 
 TESTING CHECKLIST (per the brief)
 [ ] Plugin activates with no errors.
