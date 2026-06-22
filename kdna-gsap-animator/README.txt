@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.7
+Version: 1.5.8
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -55,9 +55,18 @@ Creating an injected pinned effect makes GSAP lay out a pin spacer and run its
 own global refresh, which re-syncs every scrubbed effect to the scrollbar in one
 step. If that happens while a side-sliding row is still gliding after the scroll,
 the row is seen to jump at the end of its glide. So the engine holds the wiring
-of injected content until the scroll has settled for a moment: at rest each
-scrub already sits on its scroll-mapped position, so the unavoidable refresh
-moves nothing on screen. Before the first scroll the build is immediate.
+of injected content until the scroll has settled, which means the glide has
+actually finished (the scrub keeps moving for its smoothing length after the last
+scroll, so it waits that long plus a margin). At rest each scrub already sits on
+its scroll-mapped position, so the unavoidable refresh moves nothing on screen.
+Before the first scroll the build is immediate.
+
+The seamless scroll injects each project's scoped stylesheet just after it hands
+over the content, so the pin heights and the diagonal feature's centring are
+first measured against a layout that then reflows. To stay correct without a
+global refresh, the engine re-measures only the new project's own triggers as its
+images load and again shortly after, so the new effect settles onto the final
+layout while the existing rows are left untouched.
 
 FILTERS (for the developer)
 - kdna_gsap_post_types         (array of post types to load the engine on)
