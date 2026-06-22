@@ -1115,18 +1115,23 @@
 				anticipatePin: 1,
 				invalidateOnRefresh: true,
 				// In debug, print how far the feature centre is from the viewport centre
-				// while it is popped, so the live centring error can be read straight
-				// from the console without running diagnose(). Throttled.
+				// as it pops, plus whether it rides inside a drifting column, so the
+				// exact centring error can be read straight from the console. Throttled.
 				onUpdate: DEBUG ? function (self) {
-					if (!feature || self.progress < 0.85) { return; }
+					if (!feature || self.progress < 0.6) { return; }
 					var t = nowMs();
-					if (t - lastFeatLog < 400) { return; }
+					if (t - lastFeatLog < 150) { return; }
 					lastFeatLog = t;
 					var fr = feature.getBoundingClientRect();
-					log('Feature popped (progress ' + self.progress.toFixed(2) + '): OFFSET from viewport centre x=' +
+					var inCol = 'no';
+					for (var ci = 0; ci < cols.length; ci++) {
+						if (cols[ci] !== feature && cols[ci].contains && cols[ci].contains(feature)) { inCol = describe(cols[ci]); break; }
+					}
+					log('Feature pop ' + self.progress.toFixed(2) + ': OFFSET x=' +
 						Math.round(window.innerWidth / 2 - (fr.left + fr.width / 2)) + ' y=' +
 						Math.round(window.innerHeight / 2 - (fr.top + fr.height / 2)) +
-						' (0,0 = perfectly centred); feature ' + Math.round(fr.width) + 'x' + Math.round(fr.height));
+						' | size ' + Math.round(fr.width) + 'x' + Math.round(fr.height) +
+						' | inside drifting column: ' + inCol);
 				} : undefined
 			}
 		});

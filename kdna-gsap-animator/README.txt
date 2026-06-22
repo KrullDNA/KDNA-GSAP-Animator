@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.11
+Version: 1.5.12
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
