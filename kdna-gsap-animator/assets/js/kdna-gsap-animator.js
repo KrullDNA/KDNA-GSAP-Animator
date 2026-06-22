@@ -351,9 +351,10 @@
 		newRefreshTimer = setTimeout(function () {
 			newRefreshTimer = null;
 			var list = pendingNewTriggers.splice(0, pendingNewTriggers.length);
-			var n = 0;
+			var seen = [], n = 0;
 			list.forEach(function (st) {
-				if (st && typeof st.refresh === 'function') {
+				if (st && seen.indexOf(st) === -1 && typeof st.refresh === 'function') {
+					seen.push(st); // refresh each new trigger once, never dozens of times
 					try { st.refresh(); n++; } catch (e) {}
 				}
 			});
@@ -375,6 +376,7 @@
 	// refresh moves nothing on screen. Before the first scroll we build straight
 	// away, since the page is at the top with nothing gliding.
 	var lastScrollAt = 0;
+	var lastFeatLog  = 0; // throttle for the live diagonal-feature centring readout
 	function nowMs() {
 		return ( window.performance && window.performance.now ) ? window.performance.now() : Date.now();
 	}
@@ -401,29 +403,37 @@
 		})();
 	}
 
-	// After injected content is built, re-measure ONLY its own triggers as its
-	// images load and its scoped CSS arrives (the seamless scroll injects the
-	// project stylesheet just after it hands us the content, which reflows the pin
-	// heights and the feature's centring). These are per-trigger refreshes, so they
-	// correct the new effect without the global refresh that would snap the rows.
-	function settleInjected(root, triggers) {
-		if (!triggers || !triggers.length) {
+	// The seamless scroll injects each project's stylesheet (its 160vh hero, its
+	// images and so on) JUST AFTER it hands us the content, so the panel reflows
+	// right after content-added. Building and measuring before that settles gives
+	// wrong pin heights and feature centring, and the section then jumps when it is
+	// reached. So we wait for the injected panel to stop resizing before building.
+	// A ResizeObserver makes this exact; where it is missing we build immediately.
+	function whenLayoutStable(root, cb, maxWait) {
+		if (!('ResizeObserver' in window) || !root || root === document || root.nodeType !== 1) {
+			cb();
 			return;
 		}
-		function bump() {
-			triggers.forEach(function (st) { pendingNewTriggers.push(st); });
-			scheduleNewRefresh();
+		var done = false, ro = null, debounce = null;
+		function finish() {
+			if (done) { return; }
+			done = true;
+			clearTimeout(deadline);
+			if (debounce) { clearTimeout(debounce); }
+			if (ro) { try { ro.disconnect(); } catch (e) {} }
+			cb();
 		}
-		var imgs = ( root && root.querySelectorAll ) ? [].slice.call(root.querySelectorAll('img')) : [];
-		imgs.forEach(function (img) {
-			if (!img.complete) {
-				img.addEventListener('load', bump, { once: true });
-				img.addEventListener('error', bump, { once: true });
-			}
-		});
-		// Catch the late scoped CSS even when every image was already cached.
-		setTimeout(bump, 500);
-		setTimeout(bump, 1200);
+		var deadline = setTimeout(finish, maxWait || 2000);
+		try {
+			ro = new window.ResizeObserver(function () {
+				if (debounce) { clearTimeout(debounce); }
+				debounce = setTimeout(finish, 160); // no size change for 160ms means it has settled
+			});
+			ro.observe(root);
+			debounce = setTimeout(finish, 160); // settle even if a resize never fires
+		} catch (e) {
+			finish();
+		}
 	}
 
 	// --- Resolve the right ScrollTrigger copy ------------------------------
@@ -464,21 +474,23 @@
 	// so existing effects are not snapped).
 	function reinit(root, reason) {
 		var built = 0;
-		// Wait for the scroll to settle before touching the DOM, so the global
-		// refresh GSAP runs when an injected pin spacer is created lands while the
-		// sliders are at rest and snaps nothing (see the scroll-idle gate above).
+		// Wait for the scroll to settle, then for the injected panel's layout to
+		// settle, then build once against the final layout. That way the pin heights
+		// and the feature centring are measured correctly and the section does not
+		// jump when it is reached, and the unavoidable pin-create refresh lands while
+		// the existing effects are at rest (see the scroll-idle gate above).
 		whenScrollIdle(function () {
-			teardownStale();
-			var before = entries.length;
-			built = buildEffectsIn(root || document);
-			resolveScrollTrigger();
-			var fresh = [];
-			for (var i = before; i < entries.length; i++) {
-				entries[i].triggers.forEach(function (st) { fresh.push(st); pendingNewTriggers.push(st); });
-			}
-			scheduleNewRefresh();
-			settleInjected(root || document, fresh); // re-measure the new effect as its CSS/images land
-			note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
+			whenLayoutStable(root, function () {
+				teardownStale();
+				var before = entries.length;
+				built = buildEffectsIn(root || document);
+				resolveScrollTrigger();
+				for (var i = before; i < entries.length; i++) {
+					entries[i].triggers.forEach(function (st) { pendingNewTriggers.push(st); });
+				}
+				scheduleNewRefresh();
+				note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
+			});
 		});
 		return built;
 	}
@@ -641,10 +653,10 @@
 			t = setTimeout(function () {
 				t = null;
 				var w = window.innerWidth;
-				// Ignore small changes: a scrollbar appearing when content loads, a
-				// sub-pixel rounding, or the mobile chrome. Refreshing on those would
-				// snap any in-progress scrub (the "quick movement" at the end).
-				if (Math.abs(w - lastWidth) <= 24) {
+				// Ignore changes up to a scrollbar's width (a scrollbar appearing when
+				// content loads, sub-pixel rounding, the mobile chrome). Those are not
+				// real resizes and a refresh on them would needlessly recompute pins.
+				if (Math.abs(w - lastWidth) <= 40) {
 					return;
 				}
 				lastWidth = w;
@@ -1101,7 +1113,21 @@
 				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed
 				pinReparent: !!ctx.settings.pinReparent,
 				anticipatePin: 1,
-				invalidateOnRefresh: true
+				invalidateOnRefresh: true,
+				// In debug, print how far the feature centre is from the viewport centre
+				// while it is popped, so the live centring error can be read straight
+				// from the console without running diagnose(). Throttled.
+				onUpdate: DEBUG ? function (self) {
+					if (!feature || self.progress < 0.85) { return; }
+					var t = nowMs();
+					if (t - lastFeatLog < 400) { return; }
+					lastFeatLog = t;
+					var fr = feature.getBoundingClientRect();
+					log('Feature popped (progress ' + self.progress.toFixed(2) + '): OFFSET from viewport centre x=' +
+						Math.round(window.innerWidth / 2 - (fr.left + fr.width / 2)) + ' y=' +
+						Math.round(window.innerHeight / 2 - (fr.top + fr.height / 2)) +
+						' (0,0 = perfectly centred); feature ' + Math.round(fr.width) + 'x' + Math.round(fr.height));
+				} : undefined
 			}
 		});
 
