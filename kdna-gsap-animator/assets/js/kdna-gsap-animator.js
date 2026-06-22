@@ -1090,7 +1090,6 @@
 		var travel       = ( typeof e3.columnTravel === 'number' ) ? e3.columnTravel : 18;
 		var offsets      = e3.colOffsets || [];
 		var fStart       = ( typeof e3.featureStart === 'number' ) ? Math.min( 0.95, Math.max( 0, e3.featureStart ) ) : 0.5;
-		var fallbackScale = ( typeof e3.featureScale === 'number' ) ? e3.featureScale : 3;
 
 		// Columns diag1, diag2, ... in order, any number of them.
 		var cols = [];
@@ -1159,22 +1158,23 @@
 			);
 		});
 
-		// Feature pops out from about halfway, overlapping the column motion:
-		// rotate to horizontal, centre in the viewport and scale to fill. The
-		// diagonal angle is usually on a parent, so straightening means countering
-		// the ancestors' rotation, not just zeroing the feature's own rotation.
+		// Feature pops out from about halfway: it animates from its resting place to
+		// a popped end state given as plain, tunable values (translate as a per cent
+		// of its own size, plus scale and rotation), exactly the way it was dialled in
+		// and approved in MotionPage. No measurement or matrix maths, so it is
+		// predictable and easy to adjust from the settings.
 		if (feature) {
-			var straighten = ( e3.featureStraighten !== false );
-			var featMatrix = function () { return straighten ? ancestorMatrix2D(feature) : [1, 0, 0, 1, 0, 0]; };
+			var fX   = ( typeof e3.featureX === 'number' ) ? e3.featureX : 44;
+			var fY   = ( typeof e3.featureY === 'number' ) ? e3.featureY : 179;
+			var fSc  = ( typeof e3.featureScale === 'number' ) ? e3.featureScale : 3;
+			var fRot = ( typeof e3.featureRotation === 'number' ) ? e3.featureRotation : 30;
 
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
 			tl.to(feature, {
-				rotation: function () { return -matrixRotationRad(featMatrix()) * 180 / Math.PI; },
-				// featureMove measures the feature with the columns moved to their end
-				// drift, so it lands dead centre at any size whatever the drift/rotation.
-				x: function () { return featureMove(feature, container, gsap, featMatrix(), cols, offsets, travel).x; },
-				y: function () { return featureMove(feature, container, gsap, featMatrix(), cols, offsets, travel).y; },
-				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
+				xPercent: fX,
+				yPercent: fY,
+				scale: fSc,
+				rotation: fRot,
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
 			}, fStart);

@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.13
+Version: 1.5.14
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -106,20 +106,15 @@ Fixes, in order, from Settings > KDNA GSAP Animator > Pinned effects:
    turning off Motion Effects / Scrolling Effects on that section and its parents
    in Elementor.
 
-DIAGONAL FEATURE STRAIGHTENING
-The diagonal angle is normally set on a parent of the feature image, so the
-feature is straightened by countering that parent angle (Settings > Effect 3 >
-Straighten the feature, on by default), not by zeroing its own rotation.
-
-DIAGONAL FEATURE CENTRING
-The feature is centred in the viewport by measuring its position and translating
-it to the middle, accounting for any rotation or scale on its ancestors. If the
-feature image sits inside one of the drifting columns, it is also carried by that
-column's travel, so the centring cancels that column drift as well. To check the
-result, scroll so the feature is fully popped and run kdnaGsap.diagnose(): the
-".diagGrow ... OFFSET x=.. y=.." line is how far the feature centre is from the
-viewport centre (0,0 is perfectly centred), and the next line reports whether the
-feature rides inside a drifting column.
+DIAGONAL FEATURE POP-OUT
+The feature image animates from its resting place to a popped end state given as
+plain, tunable values, the same way it was dialled in and approved in MotionPage:
+a translate as a per cent of its own size (Settings > Effect 3 > Feature pop
+position X / Y, defaults 44 and 179), a scale (Feature scale, default 3) and a
+rotation to straighten it from the diagonal (Feature rotation, default 30). There
+is no measurement or matrix maths, so the result is predictable and easy to tune.
+With ?kdna_debug=1 the console prints the feature's live position as it pops, so
+the values can be adjusted by eye against the viewport.
 
 NO SMOOTHING GLIDE
 The effects are tied directly to the scroll position (ScrollTrigger scrub: true),
