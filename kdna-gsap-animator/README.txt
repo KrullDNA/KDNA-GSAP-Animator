@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.10
+Version: 1.5.11
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -51,22 +51,17 @@ event is not dispatched. New content is wired in isolation, stale triggers are
 killed, pins are rebuilt cleanly (never duplicated), and only the new triggers
 are refreshed (existing animations are never snapped).
 
-Creating an injected pinned effect makes GSAP lay out a pin spacer and run its
-own global refresh, which re-syncs every scrubbed effect to the scrollbar in one
-step. If that happens while a side-sliding row is still gliding after the scroll,
-the row is seen to jump at the end of its glide. So the engine holds the wiring
-of injected content until the scroll has settled, which means the glide has
-actually finished (the scrub keeps moving for its smoothing length after the last
-scroll, so it waits that long plus a margin). At rest each scrub already sits on
-its scroll-mapped position, so the unavoidable refresh moves nothing on screen.
-Before the first scroll the build is immediate.
-
-The seamless scroll injects each project's scoped stylesheet just after it hands
-over the content, so the pin heights and the diagonal feature's centring are
-first measured against a layout that then reflows. To stay correct without a
-global refresh, the engine re-measures only the new project's own triggers as its
-images load and again shortly after, so the new effect settles onto the final
-layout while the existing rows are left untouched.
+Injected content is wired in two waits, so it is measured against the final
+layout and nothing on screen jumps. First the engine waits for the scroll to
+settle (the page is at rest, so the unavoidable refresh GSAP runs when it lays
+out a new pin spacer moves nothing). Then it waits for the injected panel itself
+to stop resizing, because the seamless scroll injects each project's stylesheet
+(its 160vh hero, its images and so on) just after it hands over the content, so
+the panel reflows immediately after. Only once the panel has settled does the
+engine build, so the pin heights and the diagonal feature's centring are measured
+once, correctly, and the section does not jump when it is reached. The settle is
+detected with a ResizeObserver (with a safety timeout); before the first scroll,
+and where no ResizeObserver exists, the build is immediate.
 
 FILTERS (for the developer)
 - kdna_gsap_post_types         (array of post types to load the engine on)
