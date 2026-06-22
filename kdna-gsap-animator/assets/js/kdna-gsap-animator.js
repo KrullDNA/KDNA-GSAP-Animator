@@ -1046,28 +1046,37 @@
 	// fill the viewport. The diagonal layout, angles, offsets and overflow-hidden
 	// box are all built in Elementor; this only animates the existing elements.
 
-	// The absolute translate that centres the feature in the viewport. Worked out
-	// in the container frame: during the pin the container top sits at the viewport
-	// top, so the horizontal target is scroll-independent and the vertical target
-	// is measured against the container top. The current translate is added back in
-	// (rather than using a relative "+=" value, which can accumulate across
-	// refreshes) so any rest transform Elementor set is accounted for exactly.
-	function featureMove(feature, container, gsap, M, drift) {
-		var fRect = feature.getBoundingClientRect();
-		var cRect = container.getBoundingClientRect();
+	// Centre the feature on the viewport by MEASURING where it actually ends up,
+	// rather than calculating it through the rotated, drifting columns. The feature
+	// is carried by its column's vertical drift, so we first move the columns to
+	// their end-of-pin positions, measure the feature there, then restore them. The
+	// set, measure and restore run synchronously, so the browser never paints the
+	// moved state. Scale and rotation are applied about the centre, so they do not
+	// move the centre and need not be simulated. We measure the image inside the
+	// feature when there is one, so a padded wrapper cannot throw it off. Because it
+	// reads the real rendered position against the live viewport, it lands dead
+	// centre at any browser size and whatever the ancestors do (rotation, drift,
+	// nesting). The current translate is added back in (rather than a relative
+	// value, which would accumulate across refreshes).
+	function featureMove(feature, container, gsap, M, cols, offsets, travel) {
+		var snap = null;
+		if ( cols && cols.length ) {
+			snap = [];
+			cols.forEach(function (c, i) {
+				snap[i] = gsap.getProperty(c, 'yPercent');
+				var dir = ( i % 2 === 0 ) ? 1 : -1;
+				var off = ( offsets && typeof offsets[i] === 'number' ) ? offsets[i] : 0;
+				gsap.set(c, { yPercent: off + dir * travel });
+			});
+		}
+		var target = ( feature.querySelector && feature.querySelector('img') ) || feature;
+		var fRect  = target.getBoundingClientRect();
+		var cRect  = container.getBoundingClientRect();
+		if ( snap ) {
+			cols.forEach(function (c, i) { gsap.set(c, { yPercent: snap[i] }); }); // restore at once
+		}
 		var dx    = window.innerWidth / 2 - ( fRect.left + fRect.width / 2 );
 		var dy    = window.innerHeight / 2 - ( ( fRect.top + fRect.height / 2 ) - cRect.top );
-		// If the feature rides inside a column that drifts during the pin, it is
-		// carried by that column's travel by the end, so it would land off-centre by
-		// exactly that drift. Cancel it here. A column drift is a pure translation, so
-		// it does not change the matrix below, only this offset.
-		if ( drift ) {
-			dx -= drift.x;
-			dy -= drift.y;
-		}
-		// Convert the screen-space delta into the feature's own coordinate space, so
-		// a feature inside the rotated (and possibly scaled) columns still lands
-		// centred rather than drifting or stopping short.
 		var local = matrixInvVec( M || [1, 0, 0, 1, 0, 0], dx, dy );
 		var curX  = parseFloat( gsap.getProperty( feature, 'x' ) ) || 0;
 		var curY  = parseFloat( gsap.getProperty( feature, 'y' ) ) || 0;
@@ -1158,28 +1167,13 @@
 			var straighten = ( e3.featureStraighten !== false );
 			var featMatrix = function () { return straighten ? ancestorMatrix2D(feature) : [1, 0, 0, 1, 0, 0]; };
 
-			// Screen displacement the feature inherits from its own column's drift by
-			// the end of the pin, so the centring can cancel it (otherwise the feature
-			// lands off-centre by the column travel, which is the reported problem when
-			// the feature image sits inside one of the diag columns).
-			var featureDrift = function () {
-				for (var i = 0; i < cols.length; i++) {
-					var col = cols[i];
-					if (col !== feature && col.contains && col.contains(feature)) {
-						var dir   = ( i % 2 === 0 ) ? 1 : -1;
-						var dyLoc = ( dir * travel / 100 ) * col.offsetHeight; // travel in the column's own space
-						var Mc    = ancestorMatrix2D(col);                     // mapped to screen through its ancestors
-						return { x: Mc[2] * dyLoc, y: Mc[3] * dyLoc };
-					}
-				}
-				return null;
-			};
-
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
 			tl.to(feature, {
 				rotation: function () { return -matrixRotationRad(featMatrix()) * 180 / Math.PI; },
-				x: function () { return featureMove(feature, container, gsap, featMatrix(), featureDrift()).x; },
-				y: function () { return featureMove(feature, container, gsap, featMatrix(), featureDrift()).y; },
+				// featureMove measures the feature with the columns moved to their end
+				// drift, so it lands dead centre at any size whatever the drift/rotation.
+				x: function () { return featureMove(feature, container, gsap, featMatrix(), cols, offsets, travel).x; },
+				y: function () { return featureMove(feature, container, gsap, featMatrix(), cols, offsets, travel).y; },
 				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
