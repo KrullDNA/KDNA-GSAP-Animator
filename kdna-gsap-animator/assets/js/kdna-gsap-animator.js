@@ -370,26 +370,61 @@
 	// slider to the scrollbar in one step. Done while a slider is still gliding
 	// after the scroll, that re-sync is seen as a sudden jump at the end of the
 	// glide (the reported side-sliding-rows jump). The refresh itself is
-	// unavoidable, so instead we hold the build until scrolling has been quiet for
-	// a moment: at rest every scrub already sits on its scroll-mapped position, so
-	// the same refresh moves nothing on screen. Before the first scroll we build
-	// straight away, since the page is at the top with nothing gliding.
+	// unavoidable, so instead we hold the build until the scroll has settled: at
+	// rest every scrub already sits on its scroll-mapped position, so the same
+	// refresh moves nothing on screen. Before the first scroll we build straight
+	// away, since the page is at the top with nothing gliding.
 	var lastScrollAt = 0;
 	function nowMs() {
 		return ( window.performance && window.performance.now ) ? window.performance.now() : Date.now();
 	}
 	window.addEventListener('scroll', function () { lastScrollAt = nowMs(); }, { passive: true });
 
-	function whenScrollIdle(fn, quiet) {
-		quiet = ( quiet == null ) ? 180 : quiet;
+	// "Settled" has to mean the glide has finished, not merely that the scroll has
+	// stopped: the scrub keeps moving for its smoothing length after the last
+	// scroll, so we wait that long plus a margin. With smoothing off, a short quiet
+	// is enough.
+	function settleQuiet() {
+		var s = ( typeof defaults.scrub === 'number' && defaults.scrub > 0 ) ? defaults.scrub : 0;
+		return s > 0 ? ( s * 1000 + 250 ) : 200;
+	}
+
+	function whenScrollIdle(fn) {
+		var quiet    = settleQuiet();
+		var deadline = nowMs() + 2500; // build within this even if the scroll never settles
 		(function check() {
-			var gap = nowMs() - lastScrollAt;
-			if (!lastScrollAt || gap >= quiet) {
+			var t = nowMs();
+			if (!lastScrollAt || ( t - lastScrollAt ) >= quiet || t >= deadline) {
 				fn();
 			} else {
-				setTimeout(check, Math.max(16, quiet - gap));
+				setTimeout(check, 100);
 			}
 		})();
+	}
+
+	// After injected content is built, re-measure ONLY its own triggers as its
+	// images load and its scoped CSS arrives (the seamless scroll injects the
+	// project stylesheet just after it hands us the content, which reflows the pin
+	// heights and the feature's centring). These are per-trigger refreshes, so they
+	// correct the new effect without the global refresh that would snap the rows.
+	function settleInjected(root, triggers) {
+		if (!triggers || !triggers.length) {
+			return;
+		}
+		function bump() {
+			triggers.forEach(function (st) { pendingNewTriggers.push(st); });
+			scheduleNewRefresh();
+		}
+		var imgs = ( root && root.querySelectorAll ) ? [].slice.call(root.querySelectorAll('img')) : [];
+		imgs.forEach(function (img) {
+			if (!img.complete) {
+				img.addEventListener('load', bump, { once: true });
+				img.addEventListener('error', bump, { once: true });
+			}
+		});
+		// Catch the late scoped CSS even when every image was already cached.
+		setTimeout(bump, 500);
+		setTimeout(bump, 1200);
 	}
 
 	// --- Resolve the right ScrollTrigger copy ------------------------------
@@ -438,10 +473,12 @@
 			var before = entries.length;
 			built = buildEffectsIn(root || document);
 			resolveScrollTrigger();
+			var fresh = [];
 			for (var i = before; i < entries.length; i++) {
-				entries[i].triggers.forEach(function (st) { pendingNewTriggers.push(st); });
+				entries[i].triggers.forEach(function (st) { fresh.push(st); pendingNewTriggers.push(st); });
 			}
 			scheduleNewRefresh();
+			settleInjected(root || document, fresh); // re-measure the new effect as its CSS/images land
 			note('Re-init (' + (reason || 'manual') + '): ' + built + ' new effect instance(s).');
 		});
 		return built;
@@ -675,9 +712,10 @@
 				end: e1.end || 'bottom -60%',
 				// About one second of smoothing, so the motion glides on after the
 				// scroll stops rather than stopping dead.
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
-				// Re-measure on every refresh, which covers injected content and resize.
-				invalidateOnRefresh: true
+				scrub: ( d.scrub > 0 ) ? d.scrub : true
+				// No invalidateOnRefresh here: the row's travel is a constant per cent
+				// of its own width, so it never needs re-measuring, and invalidating it
+				// on every refresh would revert it to the start for a frame (a flicker).
 			}
 		});
 
