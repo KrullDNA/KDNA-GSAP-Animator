@@ -973,10 +973,16 @@
 		msg += issues.length
 			? ('Ancestor(s) that break fixed pinning: ' + issues.join('  |  ') + '. Transform pinning handles this; if it still jumps, switch Pin type to Transform, enable Reparent pins, or remove the transform from the ancestor.')
 			: 'No transformed ancestors found above this element.';
+		var selfCls = ( typeof el.className === 'string' ) ? el.className : '';
+		var selfDs  = el.getAttribute ? ( el.getAttribute('data-settings') || '' ) : '';
+		var selfMfx = ( selfCls.indexOf('elementor-motion-effects') > -1 ) || /motion_fx|"scrolling"/i.test(selfDs);
 		var mfx = motionFxAncestor(el);
-		if (mfx) {
+		if (selfMfx) {
+			msg += ' >>> Elementor Motion/Scrolling Effect is on the PINNED element itself (id ' + ( el.id || '?' ) +
+				'). A pin and a parallax on the same element fight each other (the section will not hold). Turn that effect OFF here, and if you want the parallax, put the kdnaParallax class on a NON-pinned element instead.';
+		} else if (mfx) {
 			msg += ' >>> Elementor Motion/Scrolling Effect found on an ANCESTOR: ' + describe(mfx) +
-				' (id ' + ( mfx.id || '?' ) + '). Its parallax transform only appears while scrolling, so it both jumps fixed pinning and drifts transform pinning. The clean fix is to turn OFF Motion Effects / Scrolling Effects on THIS element in Elementor; then leave Pin type on Auto.';
+				' (id ' + ( mfx.id || '?' ) + '). Its parallax transform only appears while scrolling, so it both jumps fixed pinning and drifts transform pinning. Turn OFF Motion Effects / Scrolling Effects on THIS element in Elementor; then leave Pin type on Auto.';
 		}
 		if (smooth) { msg += ' A smooth-scroll library looks active, which can need a ScrollTrigger scrollerProxy.'; }
 		try {
@@ -1227,6 +1233,55 @@
 		recompute: function (entry) {
 			entry.el.style.overflow = isMobile() ? 'hidden' : '';
 		}
+	});
+
+	// Effect 4, vertical-scroll parallax (kdnaParallax).
+	//
+	// A like-for-like replacement for Elementor's Vertical Scroll motion effect,
+	// done as its own scrubbed GSAP animation so it never fights ScrollTrigger
+	// pinning the way Elementor's does. The element drifts vertically as it passes
+	// through the viewport (at rest when it is centred, so there is no jump on
+	// entry). Direction and speed come from the settings, and can be overridden per
+	// element with data-kdna-parallax-direction and data-kdna-parallax-speed.
+	function buildParallax(el, ctx) {
+		// Never parallax a pinned section, or anything that contains one: a transform
+		// on the pinned element (or an ancestor of it) fights the pin. That is exactly
+		// what the Elementor effect did, so this guard makes the new effect safe to
+		// drop anywhere without breaking the enlarge or the diagonal.
+		if (el.matches('.gridEnlarge, .diagImgs') || el.querySelector('.gridEnlarge, .diagImgs') || (el.closest && el.closest('.gridEnlarge, .diagImgs'))) {
+			note('Parallax skipped on/near a pinned section (it would fight the pin):', describe(el));
+			return;
+		}
+
+		var p     = ctx.settings.parallax || {};
+		var sAttr = parseFloat(el.getAttribute('data-kdna-parallax-speed'));
+		var speed = !isNaN(sAttr) ? sAttr : ( ( typeof p.speed === 'number' ) ? p.speed : 4 );
+		var dAttr = el.getAttribute('data-kdna-parallax-direction');
+		var down  = dAttr ? ( dAttr === 'down' ) : ( p.direction === 'down' );
+
+		var travel = speed * 3;                 // total yPercent travel; tune Speed to match
+		var half   = travel / 2;
+		var fromY  = down ? -half : half;       // "Up": starts low, ends high (drifts up as you scroll down)
+		var toY    = down ? half : -half;
+
+		var tl = ctx.gsap.timeline({
+			scrollTrigger: {
+				trigger: el,
+				start: 'top bottom',            // element enters the bottom of the viewport
+				end: 'bottom top',              // element leaves the top
+				scrub: true                     // tied directly to the scroll, like the rest
+			}
+		});
+		tl.fromTo(el, { yPercent: fromY }, { yPercent: toY, ease: 'none' });
+
+		ctx.addTimeline(tl);
+		ctx.onCleanup(function () { try { ctx.gsap.set(el, { clearProps: 'transform' }); } catch (e) {} });
+	}
+
+	registerEffect({
+		name: 'parallax',
+		selector: '.kdnaParallax',
+		build: buildParallax
 	});
 
 	// --- On-demand diagnostic ----------------------------------------------

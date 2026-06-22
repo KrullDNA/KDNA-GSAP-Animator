@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.15
+Version: 1.5.16
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -105,6 +105,21 @@ Fixes, in order, from Settings > KDNA GSAP Animator > Pinned effects:
 3. Best of all, remove the transform from the offending ancestor, for example by
    turning off Motion Effects / Scrolling Effects on that section and its parents
    in Elementor.
+
+EFFECT 4, VERTICAL-SCROLL PARALLAX (kdnaParallax)
+A pin-safe stand-in for Elementor's Vertical Scroll motion effect. Elementor's
+own version applies a transform that fights ScrollTrigger pinning (the pinned
+section jumps with fixed pinning and drifts with transform pinning, because a pin
+and a parallax on the same element cannot both win). So: turn Elementor's
+Scrolling Effects OFF on that element, then add the class kdnaParallax to the
+widget you want to drift. The engine animates it with its own scrubbed timeline,
+at rest when the element is centred in the viewport, so there is no entry jump.
+Direction and speed come from Settings > Effect 4 (default Up, speed 4, the same
+scale as Elementor), and can be overridden per element with the attributes
+data-kdna-parallax-direction ("up" or "down") and data-kdna-parallax-speed.
+Important: never put kdnaParallax on a pinned section (gridEnlarge or diagImgs) or
+on anything that contains one; the engine detects this and skips it (with a
+console note) so a stray class can never re-break the pins.
 
 DIAGONAL FEATURE POP-OUT
 The feature image animates from its resting place to a popped end state given as

@@ -94,6 +94,11 @@ class KDNA_GSA_Settings {
 		$out['e3_feature_rotation'] = $this->clean_float( isset( $in['e3_feature_rotation'] ) ? $in['e3_feature_rotation'] : $d['e3_feature_rotation'], -360, 360 );
 		$out['e3_col_offsets']      = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
 
+		// Effect 4, parallax.
+		$pd = isset( $in['parallax_direction'] ) ? $in['parallax_direction'] : $d['parallax_direction'];
+		$out['parallax_direction'] = in_array( $pd, array( 'up', 'down' ), true ) ? $pd : 'up';
+		$out['parallax_speed']     = $this->clean_float( isset( $in['parallax_speed'] ) ? $in['parallax_speed'] : $d['parallax_speed'], 0, 20 );
+
 		return $out;
 	}
 
@@ -373,6 +378,30 @@ class KDNA_GSA_Settings {
 						<td>
 							<input type="text" name="<?php echo esc_attr( self::OPTION ); ?>[e3_col_offsets]" value="<?php echo esc_attr( $o['e3_col_offsets'] ); ?>" class="regular-text" />
 							<p class="description"><?php esc_html_e( 'Start offsets that stagger the columns at rest, per cent, one per column, comma separated. Default: 0, 0, 0, 0.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2 class="title"><?php esc_html_e( 'Effect 4, vertical-scroll parallax', 'kdna-gsap-animator' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'A pin-safe replacement for Elementor\'s Vertical Scroll motion effect. Turn the Elementor effect off, then add the class kdnaParallax to the widget you want to drift as the page scrolls. Do not add it to a pinned section (image enlarge or diagonal) or anything that contains one; a parallax and a pin on the same element fight each other. You can override these per element with data-kdna-parallax-direction and data-kdna-parallax-speed attributes.', 'kdna-gsap-animator' ); ?></p>
+				<table class="form-table" role="presentation">
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Direction', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<select name="<?php echo esc_attr( self::OPTION ); ?>[parallax_direction]">
+								<option value="up" <?php selected( $o['parallax_direction'], 'up' ); ?>><?php esc_html_e( 'Up', 'kdna-gsap-animator' ); ?></option>
+								<option value="down" <?php selected( $o['parallax_direction'], 'down' ); ?>><?php esc_html_e( 'Down', 'kdna-gsap-animator' ); ?></option>
+							</select>
+							<p class="description"><?php esc_html_e( 'Up: the element drifts upward as the page scrolls down (the usual parallax). Default: Up.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Speed', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<input type="number" step="0.5" min="0" max="20" name="<?php echo esc_attr( self::OPTION ); ?>[parallax_speed]" value="<?php echo esc_attr( $o['parallax_speed'] ); ?>" class="small-text" />
+							<p class="description"><?php esc_html_e( 'How far it drifts, on the same scale as Elementor. Default: 4. Raise or lower to match the look you had.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 				</table>
