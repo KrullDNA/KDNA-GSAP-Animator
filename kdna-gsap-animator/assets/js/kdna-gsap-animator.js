@@ -913,6 +913,30 @@
 		return null;
 	}
 
+	// Find the first ancestor that carries an Elementor Motion/Scrolling Effect.
+	// Its transform only appears once scrolling starts, so transformedAncestor()
+	// (which reads the computed transform) misses it at load, but the class and the
+	// data-settings are present from the start. A motion-effect ancestor is the
+	// usual reason a pinned section both jumps (fixed pinning) and drifts (transform
+	// pinning): its own parallax keeps moving the section while it is pinned.
+	function motionFxAncestor(el) {
+		var node = el.parentElement;
+		var guard = 0;
+		while (node && node !== document.documentElement && guard < 40) {
+			var cls = ( node.className && typeof node.className === 'object' && 'baseVal' in node.className ) ? node.className.baseVal : node.className;
+			if (typeof cls === 'string' && cls.indexOf('elementor-motion-effects') > -1) {
+				return node;
+			}
+			var ds = node.getAttribute ? node.getAttribute('data-settings') : null;
+			if (ds && /motion_fx|"scrolling"|background_motion_fx/i.test(ds)) {
+				return node;
+			}
+			node = node.parentElement;
+			guard++;
+		}
+		return null;
+	}
+
 	// Decide how to pin: honour the setting, or in auto mode switch to transform
 	// pinning when a transformed ancestor would break the default fixed pinning.
 	function resolvePinType(el) {
@@ -949,6 +973,11 @@
 		msg += issues.length
 			? ('Ancestor(s) that break fixed pinning: ' + issues.join('  |  ') + '. Transform pinning handles this; if it still jumps, switch Pin type to Transform, enable Reparent pins, or remove the transform from the ancestor.')
 			: 'No transformed ancestors found above this element.';
+		var mfx = motionFxAncestor(el);
+		if (mfx) {
+			msg += ' >>> Elementor Motion/Scrolling Effect found on an ANCESTOR: ' + describe(mfx) +
+				' (id ' + ( mfx.id || '?' ) + '). Its parallax transform only appears while scrolling, so it both jumps fixed pinning and drifts transform pinning. The clean fix is to turn OFF Motion Effects / Scrolling Effects on THIS element in Elementor; then leave Pin type on Auto.';
+		}
 		if (smooth) { msg += ' A smooth-scroll library looks active, which can need a ScrollTrigger scrollerProxy.'; }
 		try {
 			if (window.getComputedStyle(document.documentElement).scrollBehavior === 'smooth') {
@@ -1249,6 +1278,8 @@
 				out.push(sel + ' #' + i + '  pinType=' + resolvePinType(el) + '  rect=' + rectStr(el.getBoundingClientRect()));
 				var bad = transformedAncestor(el);
 				out.push('  transformed ancestor (breaks fixed pinning): ' + ( bad ? describe(bad) : 'none' ));
+				var mfx = motionFxAncestor(el);
+				out.push('  Elementor Motion/Scrolling Effect ancestor (turn it off): ' + ( mfx ? ( describe(mfx) + ' id=' + ( mfx.id || '?' ) ) : 'none' ));
 				ancestorReport(el).forEach(function (l) { out.push(l); });
 			});
 		});
