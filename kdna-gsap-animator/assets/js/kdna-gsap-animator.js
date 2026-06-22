@@ -67,11 +67,11 @@
 
 	// --- Shared defaults ---------------------------------------------------
 
-	// The values every effect inherits unless it overrides them. scrub is the
-	// smoothing: a number means that many seconds of catch-up after the scroll
-	// stops, which is the gentle glide the brief asks for.
+	// The values every effect inherits unless it overrides them. The motion is tied
+	// directly to the scrollbar (scrub: true) with no smoothing glide, so every
+	// effect stops the instant the scroll stops. There is deliberately no scrub
+	// time here.
 	var defaults = {
-		scrub: (typeof settings.smoothing === 'number') ? settings.smoothing : 1,
 		ease: settings.ease || 'sine.inOut',
 		mobileBreakpoint: settings.mobileBreakpoint || 767
 	};
@@ -380,13 +380,12 @@
 	}
 	window.addEventListener('scroll', function () { lastScrollAt = nowMs(); }, { passive: true });
 
-	// "Settled" has to mean the glide has finished, not merely that the scroll has
-	// stopped: the scrub keeps moving for its smoothing length after the last
-	// scroll, so we wait that long plus a margin. With smoothing off, a short quiet
-	// is enough.
+	// How long after the last scroll we treat the page as settled before wiring
+	// injected content.
 	function settleQuiet() {
-		var s = ( typeof defaults.scrub === 'number' && defaults.scrub > 0 ) ? defaults.scrub : 0;
-		return s > 0 ? ( s * 1000 + 250 ) : 200;
+		// Motion is tied directly to the scroll (no glide), so a short settle is all
+		// that is needed before wiring injected content.
+		return 150;
 	}
 
 	function whenScrollIdle(fn) {
@@ -505,8 +504,7 @@
 
 		note('Engine initialised (v' + (cfg.version || '?') + '). Effects registered: ' +
 			effects.length + ', instances built: ' + built +
-			'. Scrub smoothing: ' + defaults.scrub + 's' + ( defaults.scrub > 0 ? '' : ' (direct, no glide)' ) +
-			'. If this is not the value you saved, clear your page cache (the config is printed inline per page).');
+			'. Motion is tied directly to the scroll (no smoothing glide).');
 
 		if (DEBUG) {
 			var withTriggers = 0;
@@ -716,9 +714,9 @@
 				start: e1.start || 'clamp(top 100%)',
 				// Row bottom is 60 per cent past the top, end not clamped.
 				end: e1.end || 'bottom -60%',
-				// About one second of smoothing, so the motion glides on after the
-				// scroll stops rather than stopping dead.
-				scrub: ( d.scrub > 0 ) ? d.scrub : true
+				// Tied directly to the scrollbar, with no smoothing glide, so the row
+				// stops the instant the scroll stops.
+				scrub: true
 				// No invalidateOnRefresh here: the row's travel is a constant per cent
 				// of its own width, so it never needs re-measuring, and invalidating it
 				// on every refresh would revert it to the start for a frame (a flicker).
@@ -976,7 +974,7 @@
 				trigger: grid,
 				start: e2.start || 'center 50%',     // grid centre at 50 per cent of the viewport
 				end: e2.end || 'center -150%',       // grid centre at -150 per cent, about two screens of pin
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
+				scrub: true,
 				pin: grid,
 				pinSpacing: true,
 				pinType: resolvePinType(grid),       // transform pinning when a transformed ancestor would break fixed
@@ -1097,7 +1095,7 @@
 				trigger: container,
 				start: e3.start || 'top -1px',       // pin from the container top
 				end: e3.end || 'top -100%',          // about one screen-height of pin
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
+				scrub: true,
 				pin: container,
 				pinSpacing: true,
 				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed

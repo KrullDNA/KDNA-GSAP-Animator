@@ -178,10 +178,9 @@ class KDNA_GSA_Settings {
 				<table class="form-table" role="presentation">
 
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Smoothing', 'kdna-gsap-animator' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Scroll link', 'kdna-gsap-animator' ); ?></th>
 						<td>
-							<input type="number" step="0.1" min="0" max="10" name="<?php echo esc_attr( self::OPTION ); ?>[smoothing]" value="<?php echo esc_attr( $o['smoothing'] ); ?>" class="small-text" /> <?php esc_html_e( 'seconds', 'kdna-gsap-animator' ); ?>
-							<p class="description"><?php esc_html_e( 'How long the motion keeps gliding after the scroll stops. About one second is the agreed default.', 'kdna-gsap-animator' ); ?></p>
+							<p class="description"><?php esc_html_e( 'The effects are tied directly to the scroll position, so they stop the instant the scroll stops. There is no smoothing glide.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 

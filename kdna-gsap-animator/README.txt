@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.9
+Version: 1.5.10
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -126,14 +126,19 @@ result, scroll so the feature is fully popped and run kdnaGsap.diagnose(): the
 viewport centre (0,0 is perfectly centred), and the next line reports whether the
 feature rides inside a drifting column.
 
-SMOOTHING AND CACHING
-The Smoothing setting is the scrub glide: the number of seconds the motion keeps
-moving after the scroll stops. Set it to 0 for an instant, one-to-one link to the
-scrollbar with no glide at all. The engine's settings are printed inline in each
-page, so a page cache (for example WP Rocket) will keep serving the old value
-until it is cleared. After changing any setting, clear the page cache, then load
-a page with ?kdna_debug=1 and read the "Engine initialised ... Scrub smoothing:"
-line to confirm the value actually in use.
+NO SMOOTHING GLIDE
+The effects are tied directly to the scroll position (ScrollTrigger scrub: true),
+so every effect stops the instant the scroll stops. There is no smoothing glide
+and no Smoothing setting. Note that a trackpad or smooth mouse wheel keeps the
+browser's own scroll position moving briefly after your fingers stop, and the
+effects follow the scrollbar, so that small continued motion is the operating
+system, not the plugin.
+
+CACHING
+The engine's settings are printed inline in each page, so a page cache (for
+example WP Rocket) keeps serving the old values until it is cleared. After
+changing any setting, clear the page cache, then load a page with ?kdna_debug=1
+to confirm the change is live.
 
 TESTING CHECKLIST (per the brief)
 [ ] Plugin activates with no errors.
