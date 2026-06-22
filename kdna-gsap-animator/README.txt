@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.8
+Version: 1.5.9
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -115,6 +115,25 @@ DIAGONAL FEATURE STRAIGHTENING
 The diagonal angle is normally set on a parent of the feature image, so the
 feature is straightened by countering that parent angle (Settings > Effect 3 >
 Straighten the feature, on by default), not by zeroing its own rotation.
+
+DIAGONAL FEATURE CENTRING
+The feature is centred in the viewport by measuring its position and translating
+it to the middle, accounting for any rotation or scale on its ancestors. If the
+feature image sits inside one of the drifting columns, it is also carried by that
+column's travel, so the centring cancels that column drift as well. To check the
+result, scroll so the feature is fully popped and run kdnaGsap.diagnose(): the
+".diagGrow ... OFFSET x=.. y=.." line is how far the feature centre is from the
+viewport centre (0,0 is perfectly centred), and the next line reports whether the
+feature rides inside a drifting column.
+
+SMOOTHING AND CACHING
+The Smoothing setting is the scrub glide: the number of seconds the motion keeps
+moving after the scroll stops. Set it to 0 for an instant, one-to-one link to the
+scrollbar with no glide at all. The engine's settings are printed inline in each
+page, so a page cache (for example WP Rocket) will keep serving the old value
+until it is cleared. After changing any setting, clear the page cache, then load
+a page with ?kdna_debug=1 and read the "Engine initialised ... Scrub smoothing:"
+line to confirm the value actually in use.
 
 TESTING CHECKLIST (per the brief)
 [ ] Plugin activates with no errors.
