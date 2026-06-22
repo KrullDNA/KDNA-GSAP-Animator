@@ -67,11 +67,11 @@
 
 	// --- Shared defaults ---------------------------------------------------
 
-	// The values every effect inherits unless it overrides them. scrub is the
-	// smoothing: a number means that many seconds of catch-up after the scroll
-	// stops, which is the gentle glide the brief asks for.
+	// The values every effect inherits unless it overrides them. The motion is tied
+	// directly to the scrollbar (scrub: true) with no smoothing glide, so every
+	// effect stops the instant the scroll stops. There is deliberately no scrub
+	// time here.
 	var defaults = {
-		scrub: (typeof settings.smoothing === 'number') ? settings.smoothing : 1,
 		ease: settings.ease || 'sine.inOut',
 		mobileBreakpoint: settings.mobileBreakpoint || 767
 	};
@@ -380,13 +380,12 @@
 	}
 	window.addEventListener('scroll', function () { lastScrollAt = nowMs(); }, { passive: true });
 
-	// "Settled" has to mean the glide has finished, not merely that the scroll has
-	// stopped: the scrub keeps moving for its smoothing length after the last
-	// scroll, so we wait that long plus a margin. With smoothing off, a short quiet
-	// is enough.
+	// How long after the last scroll we treat the page as settled before wiring
+	// injected content.
 	function settleQuiet() {
-		var s = ( typeof defaults.scrub === 'number' && defaults.scrub > 0 ) ? defaults.scrub : 0;
-		return s > 0 ? ( s * 1000 + 250 ) : 200;
+		// Motion is tied directly to the scroll (no glide), so a short settle is all
+		// that is needed before wiring injected content.
+		return 150;
 	}
 
 	function whenScrollIdle(fn) {
@@ -504,7 +503,8 @@
 		scheduleRefresh(0);
 
 		note('Engine initialised (v' + (cfg.version || '?') + '). Effects registered: ' +
-			effects.length + ', instances built: ' + built + '.');
+			effects.length + ', instances built: ' + built +
+			'. Motion is tied directly to the scroll (no smoothing glide).');
 
 		if (DEBUG) {
 			var withTriggers = 0;
@@ -648,8 +648,12 @@
 					return;
 				}
 				lastWidth = w;
-				ScrollTrigger.refresh();
-				log('Resize (width changed to ' + w + '): refreshed.');
+				// A real width change needs a global refresh, but a global refresh snaps
+				// in-progress scrubs, so hold it until the scroll has settled.
+				whenScrollIdle(function () {
+					ScrollTrigger.refresh();
+					log('Resize (width changed to ' + w + '): refreshed.');
+				});
 			}, 200);
 		}, { passive: true });
 	}
@@ -710,9 +714,9 @@
 				start: e1.start || 'clamp(top 100%)',
 				// Row bottom is 60 per cent past the top, end not clamped.
 				end: e1.end || 'bottom -60%',
-				// About one second of smoothing, so the motion glides on after the
-				// scroll stops rather than stopping dead.
-				scrub: ( d.scrub > 0 ) ? d.scrub : true
+				// Tied directly to the scrollbar, with no smoothing glide, so the row
+				// stops the instant the scroll stops.
+				scrub: true
 				// No invalidateOnRefresh here: the row's travel is a constant per cent
 				// of its own width, so it never needs re-measuring, and invalidating it
 				// on every refresh would revert it to the start for a frame (a flicker).
@@ -970,7 +974,7 @@
 				trigger: grid,
 				start: e2.start || 'center 50%',     // grid centre at 50 per cent of the viewport
 				end: e2.end || 'center -150%',       // grid centre at -150 per cent, about two screens of pin
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
+				scrub: true,
 				pin: grid,
 				pinSpacing: true,
 				pinType: resolvePinType(grid),       // transform pinning when a transformed ancestor would break fixed
@@ -1036,11 +1040,19 @@
 	// is measured against the container top. The current translate is added back in
 	// (rather than using a relative "+=" value, which can accumulate across
 	// refreshes) so any rest transform Elementor set is accounted for exactly.
-	function featureMove(feature, container, gsap, M) {
+	function featureMove(feature, container, gsap, M, drift) {
 		var fRect = feature.getBoundingClientRect();
 		var cRect = container.getBoundingClientRect();
 		var dx    = window.innerWidth / 2 - ( fRect.left + fRect.width / 2 );
 		var dy    = window.innerHeight / 2 - ( ( fRect.top + fRect.height / 2 ) - cRect.top );
+		// If the feature rides inside a column that drifts during the pin, it is
+		// carried by that column's travel by the end, so it would land off-centre by
+		// exactly that drift. Cancel it here. A column drift is a pure translation, so
+		// it does not change the matrix below, only this offset.
+		if ( drift ) {
+			dx -= drift.x;
+			dy -= drift.y;
+		}
 		// Convert the screen-space delta into the feature's own coordinate space, so
 		// a feature inside the rotated (and possibly scaled) columns still lands
 		// centred rather than drifting or stopping short.
@@ -1083,7 +1095,7 @@
 				trigger: container,
 				start: e3.start || 'top -1px',       // pin from the container top
 				end: e3.end || 'top -100%',          // about one screen-height of pin
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
+				scrub: true,
 				pin: container,
 				pinSpacing: true,
 				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed
@@ -1115,11 +1127,28 @@
 			var straighten = ( e3.featureStraighten !== false );
 			var featMatrix = function () { return straighten ? ancestorMatrix2D(feature) : [1, 0, 0, 1, 0, 0]; };
 
+			// Screen displacement the feature inherits from its own column's drift by
+			// the end of the pin, so the centring can cancel it (otherwise the feature
+			// lands off-centre by the column travel, which is the reported problem when
+			// the feature image sits inside one of the diag columns).
+			var featureDrift = function () {
+				for (var i = 0; i < cols.length; i++) {
+					var col = cols[i];
+					if (col !== feature && col.contains && col.contains(feature)) {
+						var dir   = ( i % 2 === 0 ) ? 1 : -1;
+						var dyLoc = ( dir * travel / 100 ) * col.offsetHeight; // travel in the column's own space
+						var Mc    = ancestorMatrix2D(col);                     // mapped to screen through its ancestors
+						return { x: Mc[2] * dyLoc, y: Mc[3] * dyLoc };
+					}
+				}
+				return null;
+			};
+
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
 			tl.to(feature, {
 				rotation: function () { return -matrixRotationRad(featMatrix()) * 180 / Math.PI; },
-				x: function () { return featureMove(feature, container, gsap, featMatrix()).x; },
-				y: function () { return featureMove(feature, container, gsap, featMatrix()).y; },
+				x: function () { return featureMove(feature, container, gsap, featMatrix(), featureDrift()).x; },
+				y: function () { return featureMove(feature, container, gsap, featMatrix(), featureDrift()).y; },
 				scale: function () { return fillScale(feature, ctx.isMobile(), fallbackScale); },
 				ease: d.ease || 'sine.inOut',
 				duration: 1 - fStart
@@ -1202,13 +1231,27 @@
 		[].slice.call(document.querySelectorAll('.diagGrow')).forEach(function (el, i) {
 			var container = el.closest ? el.closest('.diagImgs') : null;
 			var M = ancestorMatrix2D(el);
+			var r = el.getBoundingClientRect();
 			out.push('');
 			out.push('.diagGrow #' + i + '  ancestor rotation=' + ( matrixRotationRad(M) * 180 / Math.PI ).toFixed(2) + 'deg  matrix=[' + M.map(function (n) { return n.toFixed(3); }).join(',') + ']');
-			out.push('  feature rect=' + rectStr(el.getBoundingClientRect()));
+			out.push('  feature rect=' + rectStr(r));
+			// Live centring error: scroll so the feature is fully popped, then run
+			// kdnaGsap.diagnose(); OFFSET is how far the feature centre is from the
+			// viewport centre right now (0,0 means perfectly centred).
+			out.push('  feature centre now: x=' + Math.round(r.left + r.width / 2) + ' y=' + Math.round(r.top + r.height / 2) +
+				' | viewport centre: x=' + Math.round(window.innerWidth / 2) + ' y=' + Math.round(window.innerHeight / 2) +
+				' | OFFSET x=' + Math.round(window.innerWidth / 2 - (r.left + r.width / 2)) + ' y=' + Math.round(window.innerHeight / 2 - (r.top + r.height / 2)));
+			// Does the feature ride inside one of the drifting columns? If so it is
+			// carried by that column's travel, which the centring now compensates for.
+			var inCol = 'none';
+			[].slice.call(document.querySelectorAll('.diag1,.diag2,.diag3,.diag4,.diag5,.diag6,.diag7,.diag8')).forEach(function (col) {
+				if (col !== el && col.contains(el)) { inCol = describe(col); }
+			});
+			out.push('  feature rides inside drifting column: ' + inCol);
 			if (container) {
 				out.push('  container rect=' + rectStr(container.getBoundingClientRect()));
 				var mv = featureMove(el, container, gsap, M);
-				out.push('  computed centring translate: x=' + mv.x.toFixed(1) + ' y=' + mv.y.toFixed(1));
+				out.push('  computed centring translate (before drift compensation): x=' + mv.x.toFixed(1) + ' y=' + mv.y.toFixed(1));
 			}
 			ancestorReport(el).forEach(function (l) { out.push(l); });
 		});
