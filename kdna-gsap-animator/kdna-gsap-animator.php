@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KDNA GSAP Animator
  * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Three effects: side-sliding rows, image enlarge and diagonal images, all tuned from one settings page.
- * Version: 1.5.13
+ * Version: 1.5.14
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.5.13' );
+define( 'KDNA_GSAP_VERSION', '1.5.14' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -60,8 +60,10 @@ function kdna_gsap_default_options() {
 		'e3_end'            => 'top -100%',  // pin ends with the container top at -100 per cent, about one screen of pin
 		'e3_column_travel'  => 18,           // vertical travel per column, per cent, alternating by column order
 		'e3_feature_start'      => 0.5,          // where the feature pop-out begins, as a fraction of the pin (0 to 1)
-		'e3_feature_scale'      => 3,            // reference scale for the feature image as it fills the screen
-		'e3_feature_straighten' => 1,            // counter-rotate the feature by its ancestors' angle so it ends truly horizontal
+		'e3_feature_scale'      => 3,            // feature pop scale (the value approved in MotionPage)
+		'e3_feature_x'          => 44,           // feature pop translateX, per cent of its own width (MotionPage value)
+		'e3_feature_y'          => 179,          // feature pop translateY, per cent of its own height (MotionPage value)
+		'e3_feature_rotation'   => 30,           // feature pop rotation, degrees (MotionPage value)
 		'e3_col_offsets'        => '0, 0, 0, 0', // resting start offsets that stagger the columns, per cent, one per column
 	);
 }

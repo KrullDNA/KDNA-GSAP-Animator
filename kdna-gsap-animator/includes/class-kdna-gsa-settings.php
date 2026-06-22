@@ -87,10 +87,12 @@ class KDNA_GSA_Settings {
 		$out['e3_start']         = $this->clean_position( isset( $in['e3_start'] ) ? $in['e3_start'] : $d['e3_start'], $d['e3_start'] );
 		$out['e3_end']           = $this->clean_position( isset( $in['e3_end'] ) ? $in['e3_end'] : $d['e3_end'], $d['e3_end'] );
 		$out['e3_column_travel'] = $this->clean_float( isset( $in['e3_column_travel'] ) ? $in['e3_column_travel'] : $d['e3_column_travel'], -200, 200 );
-		$out['e3_feature_start']      = $this->clean_float( isset( $in['e3_feature_start'] ) ? $in['e3_feature_start'] : $d['e3_feature_start'], 0, 1 );
-		$out['e3_feature_scale']      = $this->clean_float( isset( $in['e3_feature_scale'] ) ? $in['e3_feature_scale'] : $d['e3_feature_scale'], 1, 50 );
-		$out['e3_feature_straighten'] = empty( $in['e3_feature_straighten'] ) ? 0 : 1;
-		$out['e3_col_offsets']        = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
+		$out['e3_feature_start']    = $this->clean_float( isset( $in['e3_feature_start'] ) ? $in['e3_feature_start'] : $d['e3_feature_start'], 0, 1 );
+		$out['e3_feature_scale']    = $this->clean_float( isset( $in['e3_feature_scale'] ) ? $in['e3_feature_scale'] : $d['e3_feature_scale'], 1, 50 );
+		$out['e3_feature_x']        = $this->clean_float( isset( $in['e3_feature_x'] ) ? $in['e3_feature_x'] : $d['e3_feature_x'], -500, 500 );
+		$out['e3_feature_y']        = $this->clean_float( isset( $in['e3_feature_y'] ) ? $in['e3_feature_y'] : $d['e3_feature_y'], -500, 500 );
+		$out['e3_feature_rotation'] = $this->clean_float( isset( $in['e3_feature_rotation'] ) ? $in['e3_feature_rotation'] : $d['e3_feature_rotation'], -360, 360 );
+		$out['e3_col_offsets']      = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
 
 		return $out;
 	}
@@ -350,13 +352,19 @@ class KDNA_GSA_Settings {
 					</tr>
 
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Straighten the feature', 'kdna-gsap-animator' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Feature pop position (X / Y)', 'kdna-gsap-animator' ); ?></th>
 						<td>
-							<label>
-								<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_straighten]" value="1" <?php checked( $o['e3_feature_straighten'], 1 ); ?> />
-								<?php esc_html_e( 'Rotate the feature to truly horizontal as it fills the screen', 'kdna-gsap-animator' ); ?>
-							</label>
-							<p class="description"><?php esc_html_e( 'The diagonal angle is usually set on a parent element, so the feature is straightened by countering that angle. Turn this off only if the feature should keep its diagonal tilt.', 'kdna-gsap-animator' ); ?></p>
+							<input type="number" step="1" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_x]" value="<?php echo esc_attr( $o['e3_feature_x'] ); ?>" class="small-text" /> %
+							<input type="number" step="1" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_y]" value="<?php echo esc_attr( $o['e3_feature_y'] ); ?>" class="small-text" /> %
+							<p class="description"><?php esc_html_e( 'Where the feature ends up, as a per cent of its own width and height (the same translate MotionPage used). Defaults: 44 and 179. Increase Y to move it further down, X to move it right.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Feature rotation', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<input type="number" step="1" min="-360" max="360" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_rotation]" value="<?php echo esc_attr( $o['e3_feature_rotation'] ); ?>" class="small-text" /> °
+							<p class="description"><?php esc_html_e( 'Degrees the feature rotates to as it pops out, to straighten it from the diagonal. Default: 30 (the MotionPage value). Use 0 to keep its current angle.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 
