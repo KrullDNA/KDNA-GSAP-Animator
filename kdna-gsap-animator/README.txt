@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.17
+Version: 1.5.18
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -137,13 +137,15 @@ is no measurement or matrix maths, so the result is predictable and easy to tune
 With ?kdna_debug=1 the console prints the feature's live position as it pops, so
 the values can be adjusted by eye against the viewport.
 
-NO SMOOTHING GLIDE
-The effects are tied directly to the scroll position (ScrollTrigger scrub: true),
-so every effect stops the instant the scroll stops. There is no smoothing glide
-and no Smoothing setting. Note that a trackpad or smooth mouse wheel keeps the
-browser's own scroll position moving briefly after your fingers stop, and the
-effects follow the scrollbar, so that small continued motion is the operating
-system, not the plugin.
+SMOOTHING
+Settings > Smoothing is the scrub smoothing in seconds. A small value (default
+0.3) interpolates between the browser's discrete scroll events. This does two
+things: it removes the stepping/jerkiness on the pinned effects (whose heavy
+scale/transform motion otherwise jumps between scroll steps), and it absorbs the
+recalculation that would otherwise snap the rows when you stop (the "quick
+movement"). It is a fraction of a second, not the old one-second glide. Set it to
+0 for a fully direct, one-to-one link to the scrollbar, which is crisp but can
+look stepped on a coarse mouse wheel. After changing it, clear the page cache.
 
 CACHING
 The engine's settings are printed inline in each page, so a page cache (for

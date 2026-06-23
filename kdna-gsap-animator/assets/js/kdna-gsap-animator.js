@@ -67,11 +67,14 @@
 
 	// --- Shared defaults ---------------------------------------------------
 
-	// The values every effect inherits unless it overrides them. The motion is tied
-	// directly to the scrollbar (scrub: true) with no smoothing glide, so every
-	// effect stops the instant the scroll stops. There is deliberately no scrub
-	// time here.
+	// The values every effect inherits unless it overrides them. scrub is the
+	// smoothing in seconds. A small value (the default) interpolates between the
+	// browser's discrete scroll events, which both removes the stepping/jerk on the
+	// pinned effects and absorbs the recalculation that otherwise snaps the rows
+	// when you stop (the "quick movement"). It is a fraction of a second, nothing
+	// like the old one-second glide; set it to 0 for a fully direct, 1:1 link.
 	var defaults = {
+		scrub: (typeof settings.smoothing === 'number') ? settings.smoothing : 0.3,
 		ease: settings.ease || 'sine.inOut',
 		mobileBreakpoint: settings.mobileBreakpoint || 767
 	};
@@ -385,9 +388,10 @@
 	// How long after the last scroll we treat the page as settled before wiring
 	// injected content.
 	function settleQuiet() {
-		// Motion is tied directly to the scroll (no glide), so a short settle is all
-		// that is needed before wiring injected content.
-		return 150;
+		// Wait long enough that the scrub smoothing has finished its catch-up before
+		// wiring injected content, so the unavoidable refresh does not land mid-glide.
+		var s = ( typeof defaults.scrub === 'number' && defaults.scrub > 0 ) ? defaults.scrub : 0;
+		return s > 0 ? ( s * 1000 + 250 ) : 200;
 	}
 
 	function whenScrollIdle(fn) {
@@ -516,7 +520,7 @@
 
 		note('Engine initialised (v' + (cfg.version || '?') + '). Effects registered: ' +
 			effects.length + ', instances built: ' + built +
-			'. Motion is tied directly to the scroll (no smoothing glide).');
+			'. Scrub smoothing: ' + defaults.scrub + 's' + ( defaults.scrub > 0 ? '' : ' (direct)' ) + '.');
 
 		if (DEBUG) {
 			var withTriggers = 0;
@@ -726,9 +730,9 @@
 				start: e1.start || 'clamp(top 100%)',
 				// Row bottom is 60 per cent past the top, end not clamped.
 				end: e1.end || 'bottom -60%',
-				// Tied directly to the scrollbar, with no smoothing glide, so the row
-				// stops the instant the scroll stops.
-				scrub: true
+				// A small scrub smoothing: it interpolates between the browser's scroll
+				// steps so the row does not snap when you stop. 0 makes it fully direct.
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				// No invalidateOnRefresh here: the row's travel is a constant per cent
 				// of its own width, so it never needs re-measuring, and invalidating it
 				// on every refresh would revert it to the start for a frame (a flicker).
@@ -1057,7 +1061,7 @@
 				trigger: grid,
 				start: e2.start || 'center 50%',     // grid centre at 50 per cent of the viewport
 				end: e2.end || 'center -150%',       // grid centre at -150 per cent, about two screens of pin
-				scrub: true,
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				pin: grid,
 				pinSpacing: true,
 				pinType: resolvePinType(grid),       // transform pinning when a transformed ancestor would break fixed
@@ -1190,7 +1194,7 @@
 				trigger: container,
 				start: e3.start || 'top -1px',       // pin from the container top
 				end: e3.end || 'top -100%',          // about one screen-height of pin
-				scrub: true,
+				scrub: ( d.scrub > 0 ) ? d.scrub : true,
 				pin: container,
 				pinSpacing: true,
 				pinType: resolvePinType(container),  // transform pinning when a transformed ancestor would break fixed
@@ -1293,6 +1297,7 @@
 			return;
 		}
 
+		var d     = ctx.defaults;
 		var p     = ctx.settings.parallax || {};
 		var sAttr = parseFloat(el.getAttribute('data-kdna-parallax-speed'));
 		var speed = !isNaN(sAttr) ? sAttr : ( ( typeof p.speed === 'number' ) ? p.speed : 4 );
@@ -1309,7 +1314,7 @@
 				trigger: el,
 				start: 'top bottom',            // element enters the bottom of the viewport
 				end: 'bottom top',              // element leaves the top
-				scrub: true                     // tied directly to the scroll, like the rest
+				scrub: ( d.scrub > 0 ) ? d.scrub : true
 			}
 		});
 		tl.fromTo(el, { yPercent: fromY }, { yPercent: toY, ease: 'none' });

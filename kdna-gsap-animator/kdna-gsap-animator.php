@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KDNA GSAP Animator
  * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Three effects: side-sliding rows, image enlarge and diagonal images, all tuned from one settings page.
- * Version: 1.5.17
+ * Version: 1.5.18
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.5.17' );
+define( 'KDNA_GSAP_VERSION', '1.5.18' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -35,7 +35,7 @@ function kdna_gsap_default_options() {
 		// Shared engine values.
 		'mobile_breakpoint'      => 767,         // phone breakpoint in px; at or below this we scale to width
 		'mobile_reference_width' => 1280,        // desktop width the composition is scaled down from on mobile (0 turns the scaling off)
-		'smoothing'              => 1,           // scrub smoothing in seconds; about one second glides after the scroll stops
+		'smoothing'              => 0.3,         // scrub smoothing in seconds; a small value removes stepping/snap without a real glide (0 = fully direct)
 		'ease'                   => 'sine.inOut', // GSAP ease, the brief default is Sine.easeInOut
 
 		// Pinned effects (image enlarge and diagonal images).
