@@ -534,6 +534,7 @@
 		bindContentAdded();
 		bindObserverFallback();
 		bindResize();
+		monitorScrollSource();
 	}
 
 	// --- Listening for injected content ------------------------------------
@@ -1356,6 +1357,63 @@
 		build: buildParallax
 	});
 
+	// --- Debug: where any post-scroll movement comes from ------------------
+
+	// Detect anything that animates the scroll POSITION itself. The effects track
+	// the scrollbar, so if a library eases the scroll, they keep moving after your
+	// input stops, whatever the Smoothing setting is. Shared by the monitor below
+	// and by diagnose().
+	function smoothScrollLibs() {
+		var hits = [];
+		try { if (window.ScrollSmoother && window.ScrollSmoother.get && window.ScrollSmoother.get()) { hits.push('GSAP ScrollSmoother'); } } catch (e) {}
+		if (window.lenis || window.__lenis || window.Lenis) { hits.push('Lenis'); }
+		if (window.locomotive || window.LocomotiveScroll) { hits.push('Locomotive Scroll'); }
+		try {
+			if (window.MotionPage || window.motionpage || window.mpScroll ||
+				( document.documentElement.className && String(document.documentElement.className).indexOf('mp-') > -1 ) ||
+				document.querySelector('[class*="mp_smooth"], [data-mp-smooth], #mp_wrapper, .mp-arrow')) {
+				hits.push('MotionPage');
+			}
+		} catch (e) {}
+		if (multipleGsap) { hits.push('a second GSAP copy on the page'); }
+		return hits;
+	}
+
+	// With Smoothing at 0 the engine writes every effect straight from the
+	// scrollbar (no glide), so movement that continues after you stop is the PAGE
+	// still scrolling, not the engine. This proves it: it watches your scroll INPUT
+	// (wheel/touch/keys) against the actual scroll, and once the scroll settles it
+	// prints how long the page kept moving after your last input and what is driving
+	// it. Debug only; it changes nothing about the animation.
+	function monitorScrollSource() {
+		if (!DEBUG) { return; }
+		var lastInput = 0, inertiaMs = 0, sawInput = false, settleTimer = null, lastReport = 0;
+		function onInput() { lastInput = nowMs(); sawInput = true; }
+		['wheel', 'touchstart', 'touchmove', 'keydown', 'mousedown', 'pointerdown'].forEach(function (t) {
+			try { window.addEventListener(t, onInput, { passive: true }); } catch (e) {}
+		});
+		window.addEventListener('scroll', function () {
+			var since = nowMs() - lastInput;
+			if (sawInput && since > 120 && since > inertiaMs) { inertiaMs = since; }
+			if (settleTimer) { clearTimeout(settleTimer); }
+			settleTimer = setTimeout(report, 180);
+		}, { passive: true });
+		function report() {
+			var t = nowMs();
+			if (t - lastReport < 1200) { inertiaMs = 0; sawInput = false; return; }
+			lastReport = t;
+			var libs = smoothScrollLibs();
+			if (libs.length) {
+				log('Post-scroll movement: a scroll-animation library is active (' + libs.join(', ') + '). It eases the scroll itself, so the effects (which track the scrollbar) keep moving after your input. Smoothing is ' + defaults.scrub + 's, so this is NOT the engine. Fix: turn that library\'s smooth scrolling OFF.');
+			} else if (inertiaMs > 0) {
+				log('Post-scroll movement: the page kept scrolling about ' + Math.round(inertiaMs) + 'ms after your last wheel/touch/key input, with no smooth-scroll library detected. That is browser/OS scroll momentum (a trackpad or an inertial wheel). The effects track the scrollbar so they move while it does; Smoothing is ' + defaults.scrub + 's, so the engine is adding none.');
+			} else {
+				log('Post-scroll movement: none detected. The scroll stopped with your input and nothing is animating it, so the engine is not adding movement.');
+			}
+			inertiaMs = 0; sawInput = false;
+		}
+	}
+
 	// --- On-demand diagnostic ----------------------------------------------
 
 	// Run kdnaGsap.diagnose() from the console (ideally while scrolled to a pinned
@@ -1393,10 +1451,11 @@
 		out.push('viewport: ' + window.innerWidth + 'x' + window.innerHeight + ', mobile:' + isMobile());
 		out.push('html: { ' + styleFlags(document.documentElement) + ' }');
 		out.push('body: { ' + styleFlags(document.body) + ' }');
+		var libs = smoothScrollLibs();
 		out.push('scroll-behavior: ' + window.getComputedStyle(document.documentElement).scrollBehavior +
-			' | smooth-scroll libs: lenis=' + !!(window.lenis || window.__lenis) +
-			' locomotive=' + !!window.locomotive +
-			' ScrollSmoother=' + !!window.ScrollSmoother);
+			' | scroll-animation libraries: ' + ( libs.length
+				? ( libs.join(', ') + '  <-- this animates the scroll itself; turn its smooth scrolling OFF to stop post-scroll movement' )
+				: 'none detected (any drift after you stop is browser/OS momentum, not the engine)' ));
 		out.push('active ScrollTriggers: ' + ScrollTrigger.getAll().length);
 
 		['.gridEnlarge', '.diagImgs'].forEach(function (sel) {

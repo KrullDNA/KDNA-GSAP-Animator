@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.20
+Version: 1.5.21
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -165,6 +165,28 @@ glide. Set it to 0 for a fully direct, one-to-one link to the scrollbar, which i
 crisp but can look stepped on a coarse mouse wheel. The side-sliding rows do not
 use it (see SIDE-SLIDING ROWS above): they are already one to one with the
 scrollbar and need no smoothing. After changing it, clear the page cache.
+
+MOVEMENT AFTER YOU STOP SCROLLING
+If the effects keep moving for a moment after you stop, first know what it is NOT.
+With Smoothing at 0 the engine writes every effect straight from the scrollbar,
+and the side-sliding rows are geometry-driven, so the engine adds no glide of its
+own (a scrub of 0 is a direct one-to-one link on every version, old or new).
+Continued movement is the SCROLL itself still moving, which the effects faithfully
+track. The usual causes, in order:
+- Browser/OS scroll momentum. A trackpad or an inertial mouse wheel keeps the page
+  scrolling after your fingers leave, so the effects keep tracking it. This is the
+  device, not the plugin, and cannot be removed without hijacking the scroll (which
+  is exactly what this plugin avoids).
+- A smooth-scroll library: GSAP ScrollSmoother, Lenis, Locomotive, or MotionPage's
+  smooth scrolling. These animate the scroll position itself, so everything
+  scroll-linked eases along with it. Turn the library's smooth scrolling OFF.
+- A second copy of GSAP on the page (often MotionPage). See the pinned-effects
+  note above; disable the duplicate engine.
+To see which one it is on your machine, load a portfolio page with ?kdna_debug=1,
+scroll and then stop, and read the "Post-scroll movement" line the console prints:
+it says how long the page kept scrolling after your last input and names any
+smooth-scroll library it found. kdnaGsap.diagnose() prints the same verdict on
+demand.
 
 CACHING
 The engine's settings are printed inline in each page, so a page cache (for
