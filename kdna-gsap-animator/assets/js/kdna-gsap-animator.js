@@ -713,36 +713,40 @@
 
 	// --- Effects -----------------------------------------------------------
 
-	// Effect 1, side-sliding image rows.
+	// Effect 1, side-sliding image rows. Rebuilt.
 	//
 	// imgSliderLeft (top row) and imgSliderRight (bottom row) are full-width rows,
 	// wider than the viewport, that drift sideways in opposite directions as the
-	// page scrolls down, and reverse on the way back up. Scrubbed, not pinned.
-	// Because the motion is scrubbed to the scrollbar, the reverse is automatic.
+	// page scrolls and reverse on the way back up. Each row is its own GSAP timeline
+	// driven by its own ScrollTrigger (trigger = the row), scrubbed straight to the
+	// scrollbar.
+	//
+	// The motion is LINEAR (ease: 'none'). This is the important part: a scrubbed
+	// element has to track the scroll one-to-one, so an in/out ease (which slows the
+	// row at the ends) fights the scrub and is read as a jerk just as the row
+	// finishes. Smoothness comes from the scrub smoothing (Settings > Smoothing),
+	// not from an ease on the tween. The row is put on its own GPU layer (force3D)
+	// so the continuous slide stays smooth, and the travel is a constant per cent of
+	// the row's own width so nothing needs re-measuring as it scrolls.
 	function buildSlider(el, ctx, fromX, toX) {
-		var e1 = ctx.settings.effect1 || {};
-		var d  = ctx.defaults;
+		var e1   = ctx.settings.effect1 || {};
+		var d    = ctx.defaults;
+		var from = ( typeof fromX === 'number' ) ? fromX : 0;
+		var to   = ( typeof toX === 'number' ) ? toX : 0;
 
 		var tl = ctx.gsap.timeline({
 			scrollTrigger: {
 				trigger: el,
-				// Row top reaches the bottom of the viewport, with the start clamped.
-				start: e1.start || 'clamp(top 100%)',
-				// Row bottom is 60 per cent past the top, end not clamped.
-				end: e1.end || 'bottom -60%',
-				// A small scrub smoothing: it interpolates between the browser's scroll
-				// steps so the row does not snap when you stop. 0 makes it fully direct.
-				scrub: ( d.scrub > 0 ) ? d.scrub : true,
-				// No invalidateOnRefresh here: the row's travel is a constant per cent
-				// of its own width, so it never needs re-measuring, and invalidating it
-				// on every refresh would revert it to the start for a frame (a flicker).
+				start: e1.start || 'clamp(top 100%)', // row enters the bottom of the viewport
+				end: e1.end || 'bottom -60%',         // row bottom is 60 per cent past the top
+				scrub: ( d.scrub > 0 ) ? d.scrub : true
 			}
 		});
 
 		tl.fromTo(
 			el,
-			{ xPercent: ( typeof fromX === 'number' ) ? fromX : 0 },
-			{ xPercent: ( typeof toX === 'number' ) ? toX : 0, ease: d.ease || 'sine.inOut' }
+			{ xPercent: from, force3D: true },
+			{ xPercent: to, ease: 'none', force3D: true }
 		);
 
 		ctx.addTimeline(tl);
