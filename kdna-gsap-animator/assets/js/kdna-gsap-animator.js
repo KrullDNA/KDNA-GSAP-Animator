@@ -713,43 +713,66 @@
 
 	// --- Effects -----------------------------------------------------------
 
-	// Effect 1, side-sliding image rows. Rebuilt.
+	// Effect 1, side-sliding image rows. Rebuilt so the rows can never jerk.
 	//
 	// imgSliderLeft (top row) and imgSliderRight (bottom row) are full-width rows,
 	// wider than the viewport, that drift sideways in opposite directions as the
-	// page scrolls and reverse on the way back up. Each row is its own GSAP timeline
-	// driven by its own ScrollTrigger (trigger = the row), scrubbed straight to the
-	// scrollbar.
+	// page scrolls and reverse on the way back up.
 	//
-	// The motion is LINEAR (ease: 'none'). This is the important part: a scrubbed
-	// element has to track the scroll one-to-one, so an in/out ease (which slows the
-	// row at the ends) fights the scrub and is read as a jerk just as the row
-	// finishes. Smoothness comes from the scrub smoothing (Settings > Smoothing),
-	// not from an ease on the tween. The row is put on its own GPU layer (force3D)
-	// so the continuous slide stays smooth, and the travel is a constant per cent of
-	// the row's own width so nothing needs re-measuring as it scrolls.
+	// Why this rebuild. Every earlier version drove the row with a SCRUBBED GSAP
+	// timeline: ScrollTrigger cached the row's start and end scroll positions and
+	// mapped them to xPercent. The trouble is that anything which recalculates those
+	// cached positions, above all the GLOBAL refresh GSAP fires whenever the seamless
+	// scroll injects a project (a new pin spacer changes the page height) or when the
+	// window resizes, re-maps the row in one step. The scrubbed value then jumps to
+	// the new mapping: that was the "jerk at the end" the row kept showing whatever
+	// the smoothing was set to, because the jerk was never the smoothing, it was the
+	// re-map.
+	//
+	// So the row is no longer scrubbed. A ScrollTrigger still drives it (it reports
+	// each scroll update and fires on refresh), but the position is computed fresh
+	// from the row's LIVE on-screen geometry on every update and written straight to
+	// xPercent. Nothing is cached, so a refresh can only ever recompute the very same
+	// number for the very same on-screen position: it cannot snap the row. There is
+	// no scrub tween either, so the motion is one-to-one with the scrollbar and stops
+	// the instant the scroll stops (no glide). force3D keeps the row on its own GPU
+	// layer so the continuous slide stays smooth.
 	function buildSlider(el, ctx, fromX, toX) {
 		var e1   = ctx.settings.effect1 || {};
-		var d    = ctx.defaults;
+		var gsap = ctx.gsap;
 		var from = ( typeof fromX === 'number' ) ? fromX : 0;
 		var to   = ( typeof toX === 'number' ) ? toX : 0;
 
-		var tl = ctx.gsap.timeline({
-			scrollTrigger: {
-				trigger: el,
-				start: e1.start || 'clamp(top 100%)', // row enters the bottom of the viewport
-				end: e1.end || 'bottom -60%',         // row bottom is 60 per cent past the top
-				scrub: ( d.scrub > 0 ) ? d.scrub : true
-			}
+		// The row's progress through the viewport: 0 when its top reaches the bottom
+		// of the viewport (the start) and 1 when its bottom is 60 per cent above the
+		// top (the end), matching the configured clamp(top 100%) to bottom -60%. Read
+		// live, so it is always exactly consistent with where the row really is on
+		// screen, whatever a refresh does to the layout above it.
+		function progress() {
+			var rect = el.getBoundingClientRect();
+			var vh   = window.innerHeight || 1;
+			var span = 1.6 * vh + ( rect.height || 0 );
+			var p    = span > 0 ? ( vh - rect.top ) / span : 0;
+			return p < 0 ? 0 : ( p > 1 ? 1 : p );
+		}
+
+		function render() {
+			gsap.set(el, { xPercent: from + ( to - from ) * progress(), force3D: true });
+		}
+
+		// ScrollTrigger drives the row: onUpdate on every scroll while the row is in
+		// range, onRefresh after any recalculation. Both just re-run the live render,
+		// so neither a global refresh nor a resize can ever move the row out of step.
+		var st = ctx.ScrollTrigger.create({
+			trigger: el,
+			start: e1.start || 'clamp(top 100%)', // row top reaches the bottom of the viewport
+			end: e1.end || 'bottom -60%',         // row bottom is 60 per cent past the top
+			onUpdate: render,
+			onRefresh: render
 		});
 
-		tl.fromTo(
-			el,
-			{ xPercent: from, force3D: true },
-			{ xPercent: to, ease: 'none', force3D: true }
-		);
-
-		ctx.addTimeline(tl);
+		ctx.addTrigger(st);
+		render(); // set the resting position at once
 
 		// Mobile: scale the whole row to the device width and clip at the edges.
 		ctx.scaleToWidth(el);

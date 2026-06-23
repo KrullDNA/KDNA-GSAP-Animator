@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.19
+Version: 1.5.20
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -14,8 +14,10 @@ its own and has no front-end widget.
 
 THE THREE EFFECTS
 1. Side-sliding rows  imgSliderLeft, imgSliderRight
-   Two full-width rows drift sideways in opposite directions as the page scrolls.
-   Scrubbed, not pinned, reversing on the way back up.
+   Two full-width rows drift sideways in opposite directions as the page scrolls,
+   not pinned, reversing on the way back up. The rows are driven directly from
+   their live on-screen position, so they track the scrollbar one to one and
+   cannot jerk when the page recalculates (see SIDE-SLIDING ROWS below).
 2. Image enlarge      gridEnlarge, imgEnlarge, imgGrow1 to imgGrow7
    Pins the grid. The centre image grows to fill the screen while the outer
    images scale up and fly outward off the screen together.
@@ -137,15 +139,32 @@ is no measurement or matrix maths, so the result is predictable and easy to tune
 With ?kdna_debug=1 the console prints the feature's live position as it pops, so
 the values can be adjusted by eye against the viewport.
 
+SIDE-SLIDING ROWS (imgSliderLeft, imgSliderRight)
+Rebuilt so the rows can never jerk. Earlier versions drove each row with a
+scrubbed timeline: ScrollTrigger cached the row's start and end scroll positions
+and mapped them to a sideways offset. The catch is that anything which recalcs
+those cached positions, above all the global refresh GSAP runs whenever the
+seamless scroll injects a project (a new pin spacer changes the page height) or
+when the window resizes, re-maps the row in one step and the scrubbed value jumps
+to the new mapping. That was the "jerk at the end" the rows kept showing whatever
+the smoothing was set to: the jerk was never the smoothing, it was the re-map. Now
+a ScrollTrigger still drives each row, but the offset is computed fresh from the
+row's live on-screen position on every update and written straight away. Nothing
+is cached, so a refresh can only ever recompute the same offset for the same
+on-screen position: it cannot snap the row. There is no scrub tween either, so the
+motion is one to one with the scrollbar and stops the instant the scroll stops,
+with no glide. The rows do not use the Smoothing setting.
+
 SMOOTHING
-Settings > Smoothing is the scrub smoothing in seconds. A small value (default
-0.3) interpolates between the browser's discrete scroll events. This does two
-things: it removes the stepping/jerkiness on the pinned effects (whose heavy
-scale/transform motion otherwise jumps between scroll steps), and it absorbs the
-recalculation that would otherwise snap the rows when you stop (the "quick
-movement"). It is a fraction of a second, not the old one-second glide. Set it to
-0 for a fully direct, one-to-one link to the scrollbar, which is crisp but can
-look stepped on a coarse mouse wheel. After changing it, clear the page cache.
+Settings > Smoothing is the scrub smoothing in seconds, and it applies to the
+PINNED effects (image enlarge and diagonal images). A small value (default 0.3)
+interpolates between the browser's discrete scroll events, which removes the
+stepping/jerkiness on those effects, whose heavy scale/transform motion otherwise
+jumps between scroll steps. It is a fraction of a second, not the old one-second
+glide. Set it to 0 for a fully direct, one-to-one link to the scrollbar, which is
+crisp but can look stepped on a coarse mouse wheel. The side-sliding rows do not
+use it (see SIDE-SLIDING ROWS above): they are already one to one with the
+scrollbar and need no smoothing. After changing it, clear the page cache.
 
 CACHING
 The engine's settings are printed inline in each page, so a page cache (for
