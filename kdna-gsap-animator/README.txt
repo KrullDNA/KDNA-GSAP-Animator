@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.15
+Version: 1.5.17
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -75,7 +75,13 @@ for detailed engine activity in the browser console. The key init and re-init
 lines are always logged so the engine can be confirmed.
 
 TROUBLESHOOTING THE PINNED EFFECTS
-Two common environment problems are handled automatically:
+Three common environment problems are handled automatically:
+- A CSS transition on the pinned element (a theme/Elementor hover transition,
+  transition:all, an entrance transition) makes ScrollTrigger's pin writes animate
+  instead of applying at once, so the section lags the scroll and eases back when
+  you stop (transform pinning) or flashes at the ends (fixed pinning). The engine
+  forces transitions off on the pinned element while it is wired and restores them
+  on teardown. With ?kdna_debug=1 it logs the transition it found and froze.
 - scroll-behavior: smooth in the page CSS makes the browser animate scroll, which
   fights scrubbing and flashes the pins. This stylesheet forces scroll-behavior
   to auto on the pages the effects run on.
@@ -105,6 +111,21 @@ Fixes, in order, from Settings > KDNA GSAP Animator > Pinned effects:
 3. Best of all, remove the transform from the offending ancestor, for example by
    turning off Motion Effects / Scrolling Effects on that section and its parents
    in Elementor.
+
+EFFECT 4, VERTICAL-SCROLL PARALLAX (kdnaParallax)
+A pin-safe stand-in for Elementor's Vertical Scroll motion effect. Elementor's
+own version applies a transform that fights ScrollTrigger pinning (the pinned
+section jumps with fixed pinning and drifts with transform pinning, because a pin
+and a parallax on the same element cannot both win). So: turn Elementor's
+Scrolling Effects OFF on that element, then add the class kdnaParallax to the
+widget you want to drift. The engine animates it with its own scrubbed timeline,
+at rest when the element is centred in the viewport, so there is no entry jump.
+Direction and speed come from Settings > Effect 4 (default Up, speed 4, the same
+scale as Elementor), and can be overridden per element with the attributes
+data-kdna-parallax-direction ("up" or "down") and data-kdna-parallax-speed.
+Important: never put kdnaParallax on a pinned section (gridEnlarge or diagImgs) or
+on anything that contains one; the engine detects this and skips it (with a
+console note) so a stray class can never re-break the pins.
 
 DIAGONAL FEATURE POP-OUT
 The feature image animates from its resting place to a popped end state given as

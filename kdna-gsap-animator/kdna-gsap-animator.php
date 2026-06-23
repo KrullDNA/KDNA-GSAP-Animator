@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KDNA GSAP Animator
  * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Three effects: side-sliding rows, image enlarge and diagonal images, all tuned from one settings page.
- * Version: 1.5.15
+ * Version: 1.5.17
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.5.15' );
+define( 'KDNA_GSAP_VERSION', '1.5.17' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -65,6 +65,12 @@ function kdna_gsap_default_options() {
 		'e3_feature_y'          => 179,          // feature pop translateY, per cent of its own height (MotionPage value)
 		'e3_feature_rotation'   => 30,           // feature pop rotation, degrees (MotionPage value)
 		'e3_col_offsets'        => '0, 0, 0, 0', // resting start offsets that stagger the columns, per cent, one per column
+
+		// Effect 4, vertical-scroll parallax (kdnaParallax). A pin-safe replacement
+		// for Elementor's Vertical Scroll motion effect, applied by adding the
+		// kdnaParallax class to a widget (never to a pinned section).
+		'parallax_direction' => 'up',  // up or down
+		'parallax_speed'     => 4,     // matches Elementor's speed scale; higher moves further
 	);
 }
 

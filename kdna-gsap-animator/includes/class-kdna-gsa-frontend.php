@@ -35,6 +35,8 @@ class KDNA_GSA_Frontend {
 			'diagImgs',
 			'diag1', 'diag2', 'diag3', 'diag4',
 			'diagGrow',
+			// Effect 4, vertical-scroll parallax.
+			'kdnaParallax',
 		);
 	}
 
@@ -169,6 +171,12 @@ class KDNA_GSA_Frontend {
 					'featureY'          => (float) $o['e3_feature_y'],
 					'featureRotation'   => (float) $o['e3_feature_rotation'],
 					'colOffsets'        => $this->parse_offsets( $o['e3_col_offsets'] ),
+				),
+
+				// Effect 4, parallax.
+				'parallax' => array(
+					'direction' => (string) $o['parallax_direction'],
+					'speed'     => (float) $o['parallax_speed'],
 				),
 			),
 		);
