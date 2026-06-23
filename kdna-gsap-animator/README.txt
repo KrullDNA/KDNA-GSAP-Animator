@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.16
+Version: 1.5.17
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -75,7 +75,13 @@ for detailed engine activity in the browser console. The key init and re-init
 lines are always logged so the engine can be confirmed.
 
 TROUBLESHOOTING THE PINNED EFFECTS
-Two common environment problems are handled automatically:
+Three common environment problems are handled automatically:
+- A CSS transition on the pinned element (a theme/Elementor hover transition,
+  transition:all, an entrance transition) makes ScrollTrigger's pin writes animate
+  instead of applying at once, so the section lags the scroll and eases back when
+  you stop (transform pinning) or flashes at the ends (fixed pinning). The engine
+  forces transitions off on the pinned element while it is wired and restores them
+  on teardown. With ?kdna_debug=1 it logs the transition it found and froze.
 - scroll-behavior: smooth in the page CSS makes the browser animate scroll, which
   fights scrubbing and flashes the pins. This stylesheet forces scroll-behavior
   to auto on the pages the effects run on.

@@ -947,6 +947,38 @@
 		return transformedAncestor(el) ? 'transform' : 'fixed';
 	}
 
+	// ScrollTrigger pins by writing transform/position straight onto the element on
+	// every frame. If the theme or Elementor has a CSS transition on that element
+	// (a hover transition, transition:all, an entrance transition, and so on) those
+	// writes ANIMATE instead of applying at once: the pinned section then lags the
+	// scroll and eases back when you stop (transform pinning), or flashes at the
+	// ends of the pin (fixed pinning). So we force transitions off on the pinned
+	// element while it is wired, and restore the original on teardown. Returns the
+	// restore function.
+	function freezeTransition(el) {
+		if (!el || !el.style) {
+			return function () {};
+		}
+		if (DEBUG) {
+			try {
+				var ct = window.getComputedStyle(el).transition;
+				if (ct && ct !== 'none' && ct !== 'all 0s ease 0s' && ct.indexOf('0s') !== 0) {
+					log('Froze a CSS transition on the pinned element ' + describe(el) + ': "' + ct + '" (it was animating the pin writes). Restored on teardown.');
+				}
+			} catch (e) {}
+		}
+		var prevInline = el.style.transition;
+		el.style.setProperty('transition', 'none', 'important');
+		// will-change helps the browser keep the pin smooth; harmless if ignored.
+		var prevWillChange = el.style.willChange;
+		el.style.willChange = 'transform';
+		return function () {
+			if (prevInline) { el.style.setProperty('transition', prevInline); }
+			else { el.style.removeProperty('transition'); }
+			el.style.willChange = prevWillChange || '';
+		};
+	}
+
 	// In debug mode, report anything that commonly breaks pinning, so the cause of
 	// a jump or a disappear can be seen at a glance in the console.
 	function diagnosePin(el, label) {
@@ -1013,6 +1045,10 @@
 		// The outer images fly to the edges of the grid box rather than across the
 		// whole screen, which keeps the effect tidy inside its own frame.
 		grid.style.overflow = 'hidden';
+
+		// Stop any CSS transition on the grid from animating ScrollTrigger's pin
+		// writes (the cause of the pinned section drifting/jumping). Restored on teardown.
+		ctx.onCleanup( freezeTransition(grid) );
 
 		diagnosePin(grid, '.gridEnlarge');
 
@@ -1142,6 +1178,10 @@
 		if (ctx.isMobile()) {
 			container.style.overflow = 'hidden';
 		}
+
+		// Stop any CSS transition on the container from animating ScrollTrigger's pin
+		// writes (the cause of the pinned section drifting/jumping). Restored on teardown.
+		ctx.onCleanup( freezeTransition(container) );
 
 		diagnosePin(container, '.diagImgs');
 
