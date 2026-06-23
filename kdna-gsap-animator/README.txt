@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.21
+Version: 1.5.22
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -152,8 +152,11 @@ a ScrollTrigger still drives each row, but the offset is computed fresh from the
 row's live on-screen position on every update and written straight away. Nothing
 is cached, so a refresh can only ever recompute the same offset for the same
 on-screen position: it cannot snap the row. There is no scrub tween either, so the
-motion is one to one with the scrollbar and stops the instant the scroll stops,
-with no glide. The rows do not use the Smoothing setting.
+row stops the instant the scroll stops, with no glide. Its offset is eased into
+both ends (a smootherstep): on an inertial pointer (a Magic Mouse or trackpad) the
+row decelerates into its end instead of stopping dead at full speed, which was the
+remaining "jerk at the end". That is a soft landing, not smoothing, so when you
+stop, it stops. The rows do not use the Smoothing or Ease settings.
 
 SMOOTHING
 Settings > Smoothing is the scrub smoothing in seconds, and it applies to the
@@ -187,6 +190,15 @@ scroll and then stop, and read the "Post-scroll movement" line the console print
 it says how long the page kept scrolling after your last input and names any
 smooth-scroll library it found. kdnaGsap.diagnose() prints the same verdict on
 demand.
+
+A note on the "jerk at the end", which is different from coasting: a LINEAR motion
+(Ease set to none) reaches the end of its travel at full speed while an inertial
+pointer is still coasting, so it stops dead, a velocity jump you see as a jerk. The
+side-sliding rows and the diagonal column drift now ease into their ends (a soft
+landing) regardless of the Ease setting, so there is nothing to jerk. The feature
+pop-out and the image enlarge follow the Ease setting; on an inertial pointer keep
+Ease at a soft value (the default sine.inOut) rather than none so they land softly
+too.
 
 CACHING
 The engine's settings are printed inline in each page, so a page cache (for

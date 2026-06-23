@@ -735,9 +735,9 @@
 	// from the row's LIVE on-screen geometry on every update and written straight to
 	// xPercent. Nothing is cached, so a refresh can only ever recompute the very same
 	// number for the very same on-screen position: it cannot snap the row. There is
-	// no scrub tween either, so the motion is one-to-one with the scrollbar and stops
-	// the instant the scroll stops (no glide). force3D keeps the row on its own GPU
-	// layer so the continuous slide stays smooth.
+	// no scrub tween either, so the row stops the instant the scroll stops (no glide).
+	// The value is eased into both ends (see render) so it cannot jerk when it lands
+	// on an inertial pointer. force3D keeps the row on its own GPU layer.
 	function buildSlider(el, ctx, fromX, toX) {
 		var e1   = ctx.settings.effect1 || {};
 		var gsap = ctx.gsap;
@@ -757,8 +757,18 @@
 			return p < 0 ? 0 : ( p > 1 ? 1 : p );
 		}
 
+		// Ease the value into both ends with a smootherstep (zero velocity AND zero
+		// acceleration at p=0 and p=1). This is what stops the "jerk at the end" on an
+		// inertial pointer (a Magic Mouse or a trackpad): a LINEAR row reaches its end
+		// at full speed while the pointer is still coasting, so it stops dead, a sudden
+		// halt you see as a jerk. Eased, the row is barely moving as it lands, so there
+		// is nothing to jerk. This is NOT smoothing: the row still stops the instant the
+		// scroll does (no glide); the curve only shapes how fast it moves at each scroll
+		// position. The endpoints stay exact (0 maps to 0, 1 maps to 1).
 		function render() {
-			gsap.set(el, { xPercent: from + ( to - from ) * progress(), force3D: true });
+			var p = progress();
+			var eased = p * p * p * ( p * ( p * 6 - 15 ) + 10 ); // smootherstep
+			gsap.set(el, { xPercent: from + ( to - from ) * eased, force3D: true });
 		}
 
 		// ScrollTrigger drives the row: onUpdate on every scroll while the row is in
@@ -1260,7 +1270,12 @@
 			tl.fromTo(
 				col,
 				{ yPercent: off },
-				{ yPercent: off + dir * travel, ease: d.ease || 'sine.inOut', duration: 1 },
+				// power2.inOut eases the drift into both ends (zero velocity there), so a
+				// column does not jerk when it reaches the end of the pin on an inertial
+				// pointer. Fixed here rather than the global Ease, because a linear drift
+				// reaches its end at full speed and stops dead (the jerk); this is a soft
+				// landing, not smoothing, so it still stops the instant the scroll does.
+				{ yPercent: off + dir * travel, ease: 'power2.inOut', duration: 1 },
 				0
 			);
 		});
