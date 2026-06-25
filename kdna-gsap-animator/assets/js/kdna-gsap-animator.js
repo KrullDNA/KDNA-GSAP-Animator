@@ -521,6 +521,21 @@
 		ScrollTrigger.config({ ignoreMobileResize: true, autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load' });
 		ScrollTrigger.addEventListener('refreshInit', recomputeAll);
 
+		// Optional: hand scrolling to ScrollTrigger so the browser's inertial momentum
+		// (a Magic Mouse or trackpad coasting the page on after your finger leaves) is
+		// removed. That coast is the page still scrolling, which every scroll-linked
+		// effect faithfully tracks, so removing the momentum is the only way to make the
+		// effects stop the instant you do. Off by default, because it takes the scroll
+		// feel over; turn it on from Settings if the post-stop drift bothers you.
+		if (settings.normalizeScroll) {
+			try {
+				ScrollTrigger.normalizeScroll({ allowNestedScroll: true, type: 'touch,wheel,pointer' });
+				note('normalizeScroll on: inertial scroll momentum removed (effects stop exactly when you stop).');
+			} catch (e) {
+				log('normalizeScroll is unavailable in this GSAP build:', e);
+			}
+		}
+
 		var built = buildEffectsIn(document);
 		resolveScrollTrigger(); // switch to the copy our pins are really built with
 		scheduleRefresh(0);
@@ -1214,7 +1229,7 @@
 				gsap.set(c, { yPercent: off + dir * travel });
 			});
 		}
-		var target = ( feature.querySelector && feature.querySelector('img') ) || feature;
+		var target = feature;
 		var fRect  = target.getBoundingClientRect();
 		var cRect  = container.getBoundingClientRect();
 		if ( snap ) {
@@ -1312,26 +1327,44 @@
 			);
 		});
 
-		// Feature pops out from about halfway: it animates from its resting place to
-		// a popped end state given as plain, tunable values (translate as a per cent
-		// of its own size, plus scale and rotation), exactly the way it was dialled in
-		// and approved in MotionPage. No measurement or matrix maths, so it is
-		// predictable and easy to adjust from the settings.
+		// Feature pops out from about halfway. By default it AUTO-CENTRES: the engine
+		// MEASURES where it needs to go so its centre lands on the viewport centre, on
+		// every project whatever the feature's size or resting place. This replaces the
+		// hand-tuned per-cent values, which only centred the one project they were
+		// dialled in on. The measurement (featureMove) moves the columns to their end
+		// drift first, since the feature rides inside a drifting column, then reads its
+		// position relative to the pinned container, adding the current translate back
+		// so refreshes never accumulate. Scale and rotation are about the centre, so
+		// they never move it. Turn Auto-centre off in the settings to use the manual
+		// X / Y per-cent position instead (for a project dialled in by hand).
 		if (feature) {
-			var fX   = ( typeof e3.featureX === 'number' ) ? e3.featureX : 44;
-			var fY   = ( typeof e3.featureY === 'number' ) ? e3.featureY : 179;
+			var fX   = ( typeof e3.featureX === 'number' ) ? e3.featureX : 0;
+			var fY   = ( typeof e3.featureY === 'number' ) ? e3.featureY : 0;
 			var fSc  = ( typeof e3.featureScale === 'number' ) ? e3.featureScale : 3;
 			var fRot = ( typeof e3.featureRotation === 'number' ) ? e3.featureRotation : 30;
+			var autoCentre = ( e3.featureAutocentre !== false );
 
 			tl.set(feature, { transformOrigin: '50% 50%', zIndex: 999 }, fStart);
-			tl.to(feature, {
-				xPercent: fX,
-				yPercent: fY,
-				scale: fSc,
-				rotation: fRot,
-				ease: d.ease || 'sine.inOut',
-				duration: 1 - fStart
-			}, fStart);
+
+			if (autoCentre) {
+				tl.to(feature, {
+					x: function () { return featureMove(feature, container, gsap, ancestorMatrix2D(feature), cols, offsets, travel).x; },
+					y: function () { return featureMove(feature, container, gsap, ancestorMatrix2D(feature), cols, offsets, travel).y; },
+					scale: fSc,
+					rotation: fRot,
+					ease: d.ease || 'sine.inOut',
+					duration: 1 - fStart
+				}, fStart);
+			} else {
+				tl.to(feature, {
+					xPercent: fX,
+					yPercent: fY,
+					scale: fSc,
+					rotation: fRot,
+					ease: d.ease || 'sine.inOut',
+					duration: 1 - fStart
+				}, fStart);
+			}
 		}
 
 		ctx.addTimeline(tl);

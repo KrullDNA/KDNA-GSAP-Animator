@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.24
+Version: 1.5.25
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -131,14 +131,18 @@ on anything that contains one; the engine detects this and skips it (with a
 console note) so a stray class can never re-break the pins.
 
 DIAGONAL FEATURE POP-OUT
-The feature image animates from its resting place to a popped end state given as
-plain, tunable values, the same way it was dialled in and approved in MotionPage:
-a translate as a per cent of its own size (Settings > Effect 3 > Feature pop
-position X / Y, defaults 44 and 179), a scale (Feature scale, default 3) and a
-rotation to straighten it from the diagonal (Feature rotation, default 30). There
-is no measurement or matrix maths, so the result is predictable and easy to tune.
-With ?kdna_debug=1 the console prints the feature's live position as it pops, so
-the values can be adjusted by eye against the viewport.
+The feature image pops out, rotates to straighten and scales up, and by default it
+AUTO-CENTRES: the engine measures where it ends up and lands its centre on the
+viewport centre, on every project, whatever the image's size or resting place. This
+replaces the old hand-tuned per-cent position, which only centred the one project it
+was dialled in on. It measures with the columns moved to their end drift (the feature
+rides inside a drifting column) and reads the feature relative to the pinned
+container, so it is correct whatever the pin state, with no per-project tuning. Scale
+(Settings > Effect 3 > Feature scale, default 3) and rotation (Feature rotation,
+default 30) are applied about the centre, so they never move it. With ?kdna_debug=1
+the console prints the feature's live OFFSET from the viewport centre as it pops, so
+you can confirm it reaches 0. To position it by hand instead, turn off "Auto-centre
+the feature" and set Feature pop position X / Y (a per cent of its own size).
 
 SIDE-SLIDING ROWS (imgSliderLeft, imgSliderRight)
 Rebuilt so the rows can never jerk. Earlier versions drove each row with a
@@ -194,10 +198,13 @@ and the side-sliding rows are geometry-driven, so the engine adds no glide of it
 own (a scrub of 0 is a direct one-to-one link on every version, old or new).
 Continued movement is the SCROLL itself still moving, which the effects faithfully
 track. The usual causes, in order:
-- Browser/OS scroll momentum. A trackpad or an inertial mouse wheel keeps the page
-  scrolling after your fingers leave, so the effects keep tracking it. This is the
-  device, not the plugin, and cannot be removed without hijacking the scroll (which
-  is exactly what this plugin avoids).
+- Browser/OS scroll momentum. A trackpad or an inertial mouse (a Magic Mouse) keeps
+  the page coasting after your fingers leave, so the effects keep tracking it. This
+  is the device, not the plugin. To confirm it is the cause, scroll with the keyboard
+  arrow keys (no inertia): the after-stop movement disappears. To remove it, turn ON
+  Settings > Normalise scroll, which hands scrolling to ScrollTrigger and strips the
+  inertial momentum so the effects stop exactly when you do. It changes the scroll
+  feel and takes over wheel/touch scrolling, so it is off by default.
 - A smooth-scroll library: GSAP ScrollSmoother, Lenis, Locomotive, or MotionPage's
   smooth scrolling. These animate the scroll position itself, so everything
   scroll-linked eases along with it. Turn the library's smooth scrolling OFF.

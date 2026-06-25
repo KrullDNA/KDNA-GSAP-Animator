@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KDNA GSAP Animator
  * Description: Runs KDNA's scroll-driven portfolio animations on GSAP and ScrollTrigger. Built to rebuild itself when fresh projects are injected by the KDNA Seamless Portfolio Scroll, so every effect fires on AJAX-loaded content as well as on first load. Three effects: side-sliding rows, image enlarge and diagonal images, all tuned from one settings page.
- * Version: 1.5.24
+ * Version: 1.5.25
  * Author: Krull Design & Advertising
  * Text Domain: kdna-gsap-animator
  */
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Handy constants used across the plugin.
-define( 'KDNA_GSAP_VERSION', '1.5.24' );
+define( 'KDNA_GSAP_VERSION', '1.5.25' );
 define( 'KDNA_GSAP_FILE', __FILE__ );
 define( 'KDNA_GSAP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'KDNA_GSAP_URL', plugin_dir_url( __FILE__ ) );
@@ -37,6 +37,7 @@ function kdna_gsap_default_options() {
 		'mobile_reference_width' => 1280,        // desktop width the composition is scaled down from on mobile (0 turns the scaling off)
 		'smoothing'              => 0.3,         // scrub smoothing in seconds; a small value removes stepping/snap without a real glide (0 = fully direct)
 		'ease'                   => 'sine.inOut', // GSAP ease, the brief default is Sine.easeInOut
+		'normalize_scroll'       => 0,           // hand scrolling to ScrollTrigger to remove the browser's inertial momentum (Magic Mouse/trackpad coast); off by default
 
 		// Pinned effects (image enlarge and diagonal images).
 		'pin_type'               => 'auto',      // auto, fixed or transform; auto uses transform pinning when a transformed ancestor would break fixed pinning
@@ -64,6 +65,7 @@ function kdna_gsap_default_options() {
 		'e3_feature_x'          => 44,           // feature pop translateX, per cent of its own width (MotionPage value)
 		'e3_feature_y'          => 179,          // feature pop translateY, per cent of its own height (MotionPage value)
 		'e3_feature_rotation'   => 30,           // feature pop rotation, degrees (MotionPage value)
+		'e3_feature_autocentre' => 1,            // measure the feature and land it dead centre of the screen (the X/Y values below are only used when this is off)
 		'e3_col_offsets'        => '0, 0, 0, 0', // resting start offsets that stagger the columns, per cent, one per column
 
 		// Effect 4, vertical-scroll parallax (kdnaParallax). A pin-safe replacement

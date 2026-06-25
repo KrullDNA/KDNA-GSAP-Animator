@@ -136,6 +136,7 @@ class KDNA_GSA_Frontend {
 				// Shared engine values.
 				'smoothing'            => (float) $o['smoothing'],
 				'ease'                 => (string) $o['ease'],
+				'normalizeScroll'      => ! empty( $o['normalize_scroll'] ),
 				'mobileBreakpoint'     => (int) $o['mobile_breakpoint'],
 				'mobileReferenceWidth' => (int) $o['mobile_reference_width'],
 
@@ -170,6 +171,7 @@ class KDNA_GSA_Frontend {
 					'featureX'          => (float) $o['e3_feature_x'],
 					'featureY'          => (float) $o['e3_feature_y'],
 					'featureRotation'   => (float) $o['e3_feature_rotation'],
+					'featureAutocentre' => ! empty( $o['e3_feature_autocentre'] ),
 					'colOffsets'        => $this->parse_offsets( $o['e3_col_offsets'] ),
 				),
 

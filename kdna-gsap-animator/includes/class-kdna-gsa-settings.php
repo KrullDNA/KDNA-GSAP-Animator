@@ -64,6 +64,7 @@ class KDNA_GSA_Settings {
 		$out['mobile_reference_width'] = min( 4000, absint( isset( $in['mobile_reference_width'] ) ? $in['mobile_reference_width'] : $d['mobile_reference_width'] ) );
 		$out['smoothing']              = $this->clean_float( isset( $in['smoothing'] ) ? $in['smoothing'] : $d['smoothing'], 0, 10 );
 		$out['ease']                   = sanitize_text_field( isset( $in['ease'] ) && '' !== trim( $in['ease'] ) ? $in['ease'] : $d['ease'] );
+		$out['normalize_scroll']       = empty( $in['normalize_scroll'] ) ? 0 : 1;
 
 		// Pinned effects.
 		$pt = isset( $in['pin_type'] ) ? $in['pin_type'] : $d['pin_type'];
@@ -92,6 +93,7 @@ class KDNA_GSA_Settings {
 		$out['e3_feature_x']        = $this->clean_float( isset( $in['e3_feature_x'] ) ? $in['e3_feature_x'] : $d['e3_feature_x'], -500, 500 );
 		$out['e3_feature_y']        = $this->clean_float( isset( $in['e3_feature_y'] ) ? $in['e3_feature_y'] : $d['e3_feature_y'], -500, 500 );
 		$out['e3_feature_rotation'] = $this->clean_float( isset( $in['e3_feature_rotation'] ) ? $in['e3_feature_rotation'] : $d['e3_feature_rotation'], -360, 360 );
+		$out['e3_feature_autocentre'] = empty( $in['e3_feature_autocentre'] ) ? 0 : 1;
 		$out['e3_col_offsets']      = $this->clean_offsets( isset( $in['e3_col_offsets'] ) ? $in['e3_col_offsets'] : $d['e3_col_offsets'], $d['e3_col_offsets'] );
 
 		// Effect 4, parallax.
@@ -189,6 +191,17 @@ class KDNA_GSA_Settings {
 						<td>
 							<input type="number" step="0.1" min="0" max="10" name="<?php echo esc_attr( self::OPTION ); ?>[smoothing]" value="<?php echo esc_attr( $o['smoothing'] ); ?>" class="small-text" /> <?php esc_html_e( 'seconds', 'kdna-gsap-animator' ); ?>
 							<p class="description"><?php esc_html_e( 'A small scrub smoothing (default 0.3) interpolates between the browser\'s scroll steps on the PINNED effects (image enlarge and diagonal images), removing their stepping. It is a fraction of a second, not a long glide. Set it to 0 for a fully direct, 1:1 link (which can step on a mouse wheel). The side-sliding rows do not use it.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Normalise scroll', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[normalize_scroll]" value="1" <?php checked( ! empty( $o['normalize_scroll'] ) ); ?> />
+								<?php esc_html_e( 'Remove the browser\'s inertial scroll momentum (Magic Mouse / trackpad coast)', 'kdna-gsap-animator' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'A Magic Mouse or trackpad keeps the page coasting after your finger leaves, and every scroll-linked effect faithfully tracks that coast, so the effects appear to drift on after you stop. Turning this on hands scrolling to ScrollTrigger and removes that momentum, so the effects stop exactly when you do. It changes the scroll feel and takes over wheel/touch scrolling, so it is off by default; turn it on if the post-stop drift bothers you, then clear the page cache.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 
@@ -358,11 +371,22 @@ class KDNA_GSA_Settings {
 					</tr>
 
 					<tr>
+						<th scope="row"><?php esc_html_e( 'Auto-centre the feature', 'kdna-gsap-animator' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_autocentre]" value="1" <?php checked( ! empty( $o['e3_feature_autocentre'] ) ); ?> />
+								<?php esc_html_e( 'Measure the feature and land it dead centre of the screen (recommended)', 'kdna-gsap-animator' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'On by default. The engine measures where the feature ends up and centres it on every project, whatever the image size, so it no longer needs the hand-tuned position below. Turn this off only if you want to set the position by hand.', 'kdna-gsap-animator' ); ?></p>
+						</td>
+					</tr>
+
+					<tr>
 						<th scope="row"><?php esc_html_e( 'Feature pop position (X / Y)', 'kdna-gsap-animator' ); ?></th>
 						<td>
 							<input type="number" step="1" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_x]" value="<?php echo esc_attr( $o['e3_feature_x'] ); ?>" class="small-text" /> %
 							<input type="number" step="1" name="<?php echo esc_attr( self::OPTION ); ?>[e3_feature_y]" value="<?php echo esc_attr( $o['e3_feature_y'] ); ?>" class="small-text" /> %
-							<p class="description"><?php esc_html_e( 'Where the feature ends up, as a per cent of its own width and height (the same translate MotionPage used). Defaults: 44 and 179. Increase Y to move it further down, X to move it right.', 'kdna-gsap-animator' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Used ONLY when Auto-centre above is off. Where the feature ends up, as a per cent of its own width and height (the same translate MotionPage used). Increase Y to move it further down, X to move it right.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 
