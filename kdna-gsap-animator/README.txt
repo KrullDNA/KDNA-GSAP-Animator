@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.20
+Version: 1.5.23
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -19,8 +19,9 @@ THE THREE EFFECTS
    their live on-screen position, so they track the scrollbar one to one and
    cannot jerk when the page recalculates (see SIDE-SLIDING ROWS below).
 2. Image enlarge      gridEnlarge, imgEnlarge, imgGrow1 to imgGrow7
-   Pins the grid. The centre image grows to fill the screen while the outer
-   images scale up and fly outward off the screen together.
+   Pins the grid. The centre image grows and recentres to fill the screen (so it
+   reaches every edge, with no strip of background left at one side) while the
+   outer images scale up and fly outward off the screen together.
 3. Diagonal images    diagImgs, diag1 to diag4, diagGrow
    Pins the section. The columns drift vertically in alternation, then the
    feature image pops out, rotates to horizontal and scales to fill the screen.
@@ -152,8 +153,11 @@ a ScrollTrigger still drives each row, but the offset is computed fresh from the
 row's live on-screen position on every update and written straight away. Nothing
 is cached, so a refresh can only ever recompute the same offset for the same
 on-screen position: it cannot snap the row. There is no scrub tween either, so the
-motion is one to one with the scrollbar and stops the instant the scroll stops,
-with no glide. The rows do not use the Smoothing setting.
+row stops the instant the scroll stops, with no glide. Its offset is eased into
+both ends (a smootherstep): on an inertial pointer (a Magic Mouse or trackpad) the
+row decelerates into its end instead of stopping dead at full speed, which was the
+remaining "jerk at the end". That is a soft landing, not smoothing, so when you
+stop, it stops. The rows do not use the Smoothing or Ease settings.
 
 SMOOTHING
 Settings > Smoothing is the scrub smoothing in seconds, and it applies to the
@@ -165,6 +169,37 @@ glide. Set it to 0 for a fully direct, one-to-one link to the scrollbar, which i
 crisp but can look stepped on a coarse mouse wheel. The side-sliding rows do not
 use it (see SIDE-SLIDING ROWS above): they are already one to one with the
 scrollbar and need no smoothing. After changing it, clear the page cache.
+
+MOVEMENT AFTER YOU STOP SCROLLING
+If the effects keep moving for a moment after you stop, first know what it is NOT.
+With Smoothing at 0 the engine writes every effect straight from the scrollbar,
+and the side-sliding rows are geometry-driven, so the engine adds no glide of its
+own (a scrub of 0 is a direct one-to-one link on every version, old or new).
+Continued movement is the SCROLL itself still moving, which the effects faithfully
+track. The usual causes, in order:
+- Browser/OS scroll momentum. A trackpad or an inertial mouse wheel keeps the page
+  scrolling after your fingers leave, so the effects keep tracking it. This is the
+  device, not the plugin, and cannot be removed without hijacking the scroll (which
+  is exactly what this plugin avoids).
+- A smooth-scroll library: GSAP ScrollSmoother, Lenis, Locomotive, or MotionPage's
+  smooth scrolling. These animate the scroll position itself, so everything
+  scroll-linked eases along with it. Turn the library's smooth scrolling OFF.
+- A second copy of GSAP on the page (often MotionPage). See the pinned-effects
+  note above; disable the duplicate engine.
+To see which one it is on your machine, load a portfolio page with ?kdna_debug=1,
+scroll and then stop, and read the "Post-scroll movement" line the console prints:
+it says how long the page kept scrolling after your last input and names any
+smooth-scroll library it found. kdnaGsap.diagnose() prints the same verdict on
+demand.
+
+A note on the "jerk at the end", which is different from coasting: a LINEAR motion
+(Ease set to none) reaches the end of its travel at full speed while an inertial
+pointer is still coasting, so it stops dead, a velocity jump you see as a jerk. The
+side-sliding rows and the diagonal column drift now ease into their ends (a soft
+landing) regardless of the Ease setting, so there is nothing to jerk. The feature
+pop-out and the image enlarge follow the Ease setting; on an inertial pointer keep
+Ease at a soft value (the default sine.inOut) rather than none so they land softly
+too.
 
 CACHING
 The engine's settings are printed inline in each page, so a page cache (for

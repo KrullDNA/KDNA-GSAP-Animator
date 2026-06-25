@@ -188,7 +188,7 @@ class KDNA_GSA_Settings {
 						<th scope="row"><?php esc_html_e( 'Smoothing', 'kdna-gsap-animator' ); ?></th>
 						<td>
 							<input type="number" step="0.1" min="0" max="10" name="<?php echo esc_attr( self::OPTION ); ?>[smoothing]" value="<?php echo esc_attr( $o['smoothing'] ); ?>" class="small-text" /> <?php esc_html_e( 'seconds', 'kdna-gsap-animator' ); ?>
-							<p class="description"><?php esc_html_e( 'A small scrub smoothing (default 0.3) interpolates between the browser\'s scroll steps, which removes the stepping/jerk on the pinned effects and the quick movement on the rows when you stop. It is a fraction of a second, not a long glide. Set it to 0 for a fully direct, 1:1 link (which can step on a mouse wheel).', 'kdna-gsap-animator' ); ?></p>
+							<p class="description"><?php esc_html_e( 'A small scrub smoothing (default 0.3) interpolates between the browser\'s scroll steps on the PINNED effects (image enlarge and diagonal images), removing their stepping. It is a fraction of a second, not a long glide. Set it to 0 for a fully direct, 1:1 link (which can step on a mouse wheel). The side-sliding rows do not use it.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 
@@ -196,7 +196,7 @@ class KDNA_GSA_Settings {
 						<th scope="row"><?php esc_html_e( 'Ease', 'kdna-gsap-animator' ); ?></th>
 						<td>
 							<input type="text" name="<?php echo esc_attr( self::OPTION ); ?>[ease]" value="<?php echo esc_attr( $o['ease'] ); ?>" class="regular-text" />
-							<p class="description"><?php esc_html_e( 'GSAP ease applied across all effects. Default: sine.inOut (Sine.easeInOut).', 'kdna-gsap-animator' ); ?></p>
+							<p class="description"><?php esc_html_e( 'GSAP ease for the feature pop-out and the image enlarge. Default: sine.inOut (Sine.easeInOut). The side-sliding rows and the diagonal column drift always use a built-in soft landing, so they cannot jerk at the end on a trackpad or Magic Mouse whatever this is set to.', 'kdna-gsap-animator' ); ?></p>
 						</td>
 					</tr>
 

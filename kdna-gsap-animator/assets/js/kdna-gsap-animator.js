@@ -534,6 +534,7 @@
 		bindContentAdded();
 		bindObserverFallback();
 		bindResize();
+		monitorScrollSource();
 	}
 
 	// --- Listening for injected content ------------------------------------
@@ -734,9 +735,9 @@
 	// from the row's LIVE on-screen geometry on every update and written straight to
 	// xPercent. Nothing is cached, so a refresh can only ever recompute the very same
 	// number for the very same on-screen position: it cannot snap the row. There is
-	// no scrub tween either, so the motion is one-to-one with the scrollbar and stops
-	// the instant the scroll stops (no glide). force3D keeps the row on its own GPU
-	// layer so the continuous slide stays smooth.
+	// no scrub tween either, so the row stops the instant the scroll stops (no glide).
+	// The value is eased into both ends (see render) so it cannot jerk when it lands
+	// on an inertial pointer. force3D keeps the row on its own GPU layer.
 	function buildSlider(el, ctx, fromX, toX) {
 		var e1   = ctx.settings.effect1 || {};
 		var gsap = ctx.gsap;
@@ -756,8 +757,18 @@
 			return p < 0 ? 0 : ( p > 1 ? 1 : p );
 		}
 
+		// Ease the value into both ends with a smootherstep (zero velocity AND zero
+		// acceleration at p=0 and p=1). This is what stops the "jerk at the end" on an
+		// inertial pointer (a Magic Mouse or a trackpad): a LINEAR row reaches its end
+		// at full speed while the pointer is still coasting, so it stops dead, a sudden
+		// halt you see as a jerk. Eased, the row is barely moving as it lands, so there
+		// is nothing to jerk. This is NOT smoothing: the row still stops the instant the
+		// scroll does (no glide); the curve only shapes how fast it moves at each scroll
+		// position. The endpoints stay exact (0 maps to 0, 1 maps to 1).
 		function render() {
-			gsap.set(el, { xPercent: from + ( to - from ) * progress(), force3D: true });
+			var p = progress();
+			var eased = p * p * p * ( p * ( p * 6 - 15 ) + 10 ); // smootherstep
+			gsap.set(el, { xPercent: from + ( to - from ) * eased, force3D: true });
 		}
 
 		// ScrollTrigger drives the row: onUpdate on every scroll while the row is in
@@ -1098,9 +1109,31 @@
 			}
 		});
 
-		// Centre grows in place to fill the viewport. No translation.
+		// Centre grows AND recentres to fill the viewport. It is not always centred
+		// in the grid at rest (the Elementor layout can sit it off to one side), so
+		// growing it in place left a strip of background at the edge it was offset
+		// away from (the reported gap on the left). We translate its centre onto the
+		// grid centre as it grows: during the pin the grid centre sits at the viewport
+		// centre, so the image lands dead centre and the cover scale then fills every
+		// edge. The translate is measured live (the same way the outer images are),
+		// with the current translate added back so refreshes never accumulate. Because
+		// the image and the grid move together, this delta is the same whether read at
+		// rest or while pinned, so it is robust. transformOrigin 50% 50% keeps the
+		// scale about that centre, so the translate alone decides where it lands.
 		if (centre) {
 			tl.to(centre, {
+				x: function () {
+					var ir = centre.getBoundingClientRect();
+					var gr = grid.getBoundingClientRect();
+					var curX = parseFloat( gsap.getProperty( centre, 'x' ) ) || 0;
+					return curX + ( ( gr.left + gr.width / 2 ) - ( ir.left + ir.width / 2 ) );
+				},
+				y: function () {
+					var ir = centre.getBoundingClientRect();
+					var gr = grid.getBoundingClientRect();
+					var curY = parseFloat( gsap.getProperty( centre, 'y' ) ) || 0;
+					return curY + ( ( gr.top + gr.height / 2 ) - ( ir.top + ir.height / 2 ) );
+				},
 				scale: function () { return fillScale(centre, ctx.isMobile()); },
 				transformOrigin: '50% 50%',
 				ease: d.ease || 'sine.inOut',
@@ -1259,7 +1292,12 @@
 			tl.fromTo(
 				col,
 				{ yPercent: off },
-				{ yPercent: off + dir * travel, ease: d.ease || 'sine.inOut', duration: 1 },
+				// power2.inOut eases the drift into both ends (zero velocity there), so a
+				// column does not jerk when it reaches the end of the pin on an inertial
+				// pointer. Fixed here rather than the global Ease, because a linear drift
+				// reaches its end at full speed and stops dead (the jerk); this is a soft
+				// landing, not smoothing, so it still stops the instant the scroll does.
+				{ yPercent: off + dir * travel, ease: 'power2.inOut', duration: 1 },
 				0
 			);
 		});
@@ -1356,6 +1394,63 @@
 		build: buildParallax
 	});
 
+	// --- Debug: where any post-scroll movement comes from ------------------
+
+	// Detect anything that animates the scroll POSITION itself. The effects track
+	// the scrollbar, so if a library eases the scroll, they keep moving after your
+	// input stops, whatever the Smoothing setting is. Shared by the monitor below
+	// and by diagnose().
+	function smoothScrollLibs() {
+		var hits = [];
+		try { if (window.ScrollSmoother && window.ScrollSmoother.get && window.ScrollSmoother.get()) { hits.push('GSAP ScrollSmoother'); } } catch (e) {}
+		if (window.lenis || window.__lenis || window.Lenis) { hits.push('Lenis'); }
+		if (window.locomotive || window.LocomotiveScroll) { hits.push('Locomotive Scroll'); }
+		try {
+			if (window.MotionPage || window.motionpage || window.mpScroll ||
+				( document.documentElement.className && String(document.documentElement.className).indexOf('mp-') > -1 ) ||
+				document.querySelector('[class*="mp_smooth"], [data-mp-smooth], #mp_wrapper, .mp-arrow')) {
+				hits.push('MotionPage');
+			}
+		} catch (e) {}
+		if (multipleGsap) { hits.push('a second GSAP copy on the page'); }
+		return hits;
+	}
+
+	// With Smoothing at 0 the engine writes every effect straight from the
+	// scrollbar (no glide), so movement that continues after you stop is the PAGE
+	// still scrolling, not the engine. This proves it: it watches your scroll INPUT
+	// (wheel/touch/keys) against the actual scroll, and once the scroll settles it
+	// prints how long the page kept moving after your last input and what is driving
+	// it. Debug only; it changes nothing about the animation.
+	function monitorScrollSource() {
+		if (!DEBUG) { return; }
+		var lastInput = 0, inertiaMs = 0, sawInput = false, settleTimer = null, lastReport = 0;
+		function onInput() { lastInput = nowMs(); sawInput = true; }
+		['wheel', 'touchstart', 'touchmove', 'keydown', 'mousedown', 'pointerdown'].forEach(function (t) {
+			try { window.addEventListener(t, onInput, { passive: true }); } catch (e) {}
+		});
+		window.addEventListener('scroll', function () {
+			var since = nowMs() - lastInput;
+			if (sawInput && since > 120 && since > inertiaMs) { inertiaMs = since; }
+			if (settleTimer) { clearTimeout(settleTimer); }
+			settleTimer = setTimeout(report, 180);
+		}, { passive: true });
+		function report() {
+			var t = nowMs();
+			if (t - lastReport < 1200) { inertiaMs = 0; sawInput = false; return; }
+			lastReport = t;
+			var libs = smoothScrollLibs();
+			if (libs.length) {
+				log('Post-scroll movement: a scroll-animation library is active (' + libs.join(', ') + '). It eases the scroll itself, so the effects (which track the scrollbar) keep moving after your input. Smoothing is ' + defaults.scrub + 's, so this is NOT the engine. Fix: turn that library\'s smooth scrolling OFF.');
+			} else if (inertiaMs > 0) {
+				log('Post-scroll movement: the page kept scrolling about ' + Math.round(inertiaMs) + 'ms after your last wheel/touch/key input, with no smooth-scroll library detected. That is browser/OS scroll momentum (a trackpad or an inertial wheel). The effects track the scrollbar so they move while it does; Smoothing is ' + defaults.scrub + 's, so the engine is adding none.');
+			} else {
+				log('Post-scroll movement: none detected. The scroll stopped with your input and nothing is animating it, so the engine is not adding movement.');
+			}
+			inertiaMs = 0; sawInput = false;
+		}
+	}
+
 	// --- On-demand diagnostic ----------------------------------------------
 
 	// Run kdnaGsap.diagnose() from the console (ideally while scrolled to a pinned
@@ -1393,10 +1488,11 @@
 		out.push('viewport: ' + window.innerWidth + 'x' + window.innerHeight + ', mobile:' + isMobile());
 		out.push('html: { ' + styleFlags(document.documentElement) + ' }');
 		out.push('body: { ' + styleFlags(document.body) + ' }');
+		var libs = smoothScrollLibs();
 		out.push('scroll-behavior: ' + window.getComputedStyle(document.documentElement).scrollBehavior +
-			' | smooth-scroll libs: lenis=' + !!(window.lenis || window.__lenis) +
-			' locomotive=' + !!window.locomotive +
-			' ScrollSmoother=' + !!window.ScrollSmoother);
+			' | scroll-animation libraries: ' + ( libs.length
+				? ( libs.join(', ') + '  <-- this animates the scroll itself; turn its smooth scrolling OFF to stop post-scroll movement' )
+				: 'none detected (any drift after you stop is browser/OS momentum, not the engine)' ));
 		out.push('active ScrollTriggers: ' + ScrollTrigger.getAll().length);
 
 		['.gridEnlarge', '.diagImgs'].forEach(function (sel) {
