@@ -1109,9 +1109,31 @@
 			}
 		});
 
-		// Centre grows in place to fill the viewport. No translation.
+		// Centre grows AND recentres to fill the viewport. It is not always centred
+		// in the grid at rest (the Elementor layout can sit it off to one side), so
+		// growing it in place left a strip of background at the edge it was offset
+		// away from (the reported gap on the left). We translate its centre onto the
+		// grid centre as it grows: during the pin the grid centre sits at the viewport
+		// centre, so the image lands dead centre and the cover scale then fills every
+		// edge. The translate is measured live (the same way the outer images are),
+		// with the current translate added back so refreshes never accumulate. Because
+		// the image and the grid move together, this delta is the same whether read at
+		// rest or while pinned, so it is robust. transformOrigin 50% 50% keeps the
+		// scale about that centre, so the translate alone decides where it lands.
 		if (centre) {
 			tl.to(centre, {
+				x: function () {
+					var ir = centre.getBoundingClientRect();
+					var gr = grid.getBoundingClientRect();
+					var curX = parseFloat( gsap.getProperty( centre, 'x' ) ) || 0;
+					return curX + ( ( gr.left + gr.width / 2 ) - ( ir.left + ir.width / 2 ) );
+				},
+				y: function () {
+					var ir = centre.getBoundingClientRect();
+					var gr = grid.getBoundingClientRect();
+					var curY = parseFloat( gsap.getProperty( centre, 'y' ) ) || 0;
+					return curY + ( ( gr.top + gr.height / 2 ) - ( ir.top + ir.height / 2 ) );
+				},
 				scale: function () { return fillScale(centre, ctx.isMobile()); },
 				transformOrigin: '50% 50%',
 				ease: d.ease || 'sine.inOut',

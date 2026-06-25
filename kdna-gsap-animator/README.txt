@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.22
+Version: 1.5.23
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -19,8 +19,9 @@ THE THREE EFFECTS
    their live on-screen position, so they track the scrollbar one to one and
    cannot jerk when the page recalculates (see SIDE-SLIDING ROWS below).
 2. Image enlarge      gridEnlarge, imgEnlarge, imgGrow1 to imgGrow7
-   Pins the grid. The centre image grows to fill the screen while the outer
-   images scale up and fly outward off the screen together.
+   Pins the grid. The centre image grows and recentres to fill the screen (so it
+   reaches every edge, with no strip of background left at one side) while the
+   outer images scale up and fly outward off the screen together.
 3. Diagonal images    diagImgs, diag1 to diag4, diagGrow
    Pins the section. The columns drift vertically in alternation, then the
    feature image pops out, rotates to horizontal and scales to fill the screen.
