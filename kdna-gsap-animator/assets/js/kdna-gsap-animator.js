@@ -462,7 +462,7 @@
 					// to it and move our config and refresh hook across.
 					multipleGsap = true;
 					ScrollTrigger = t.constructor;
-					try { ScrollTrigger.config({ ignoreMobileResize: true }); } catch (e) {}
+					try { ScrollTrigger.config({ ignoreMobileResize: true, autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load' }); } catch (e) {}
 					ScrollTrigger.addEventListener('refreshInit', recomputeAll);
 					log('Re-aligned to the ScrollTrigger our pins use (a second GSAP copy is on the page).');
 				}
@@ -511,7 +511,14 @@
 		// Re-apply mobile scaling and effect recompute at the start of every refresh
 		// (first load, image load, resize). Attached now; if a second GSAP copy is
 		// found, resolveScrollTrigger() re-attaches it to the correct copy as well.
-		ScrollTrigger.config({ ignoreMobileResize: true });
+		// Only refresh on deliberate events, NOT on every resize. ScrollTrigger's
+		// default autoRefreshEvents include 'resize', so a YouTube/Vimeo embed
+		// initialising, the marquee measuring, a scrollbar appearing, or DevTools
+		// docking each fired a GLOBAL refresh that re-synced every scrubbed and pinned
+		// effect to the scrollbar in one step (seen in the console as repeated "Global
+		// ScrollTrigger refresh" lines, and felt as the jerk). Genuine width resizes
+		// are handled by our own debounced, thresholded handler instead (bindResize).
+		ScrollTrigger.config({ ignoreMobileResize: true, autoRefreshEvents: 'visibilitychange,DOMContentLoaded,load' });
 		ScrollTrigger.addEventListener('refreshInit', recomputeAll);
 
 		var built = buildEffectsIn(document);
@@ -665,12 +672,13 @@
 					return;
 				}
 				lastWidth = w;
-				// A real width change needs a global refresh, but a global refresh snaps
-				// in-progress scrubs, so hold it until the scroll has settled.
-				whenScrollIdle(function () {
-					ScrollTrigger.refresh();
-					log('Resize (width changed to ' + w + '): refreshed.');
-				});
+				// Refresh promptly (not deferred to scroll-idle). With the rows
+				// geometry-driven and smoothing at 0 there is no glide to protect, and
+				// holding the refresh until the scroll settled made it land exactly when
+				// you stopped, which read as a jerk. A genuine width resize is rare, and
+				// firing now means any recompute is masked by the motion of the resize.
+				ScrollTrigger.refresh();
+				log('Resize (width changed to ' + w + '): refreshed.');
 			}, 200);
 		}, { passive: true });
 	}
@@ -771,15 +779,17 @@
 			gsap.set(el, { xPercent: from + ( to - from ) * eased, force3D: true });
 		}
 
-		// ScrollTrigger drives the row: onUpdate on every scroll while the row is in
-		// range, onRefresh after any recalculation. Both just re-run the live render,
-		// so neither a global refresh nor a resize can ever move the row out of step.
+		// ScrollTrigger drives the row: onUpdate runs the live render on every scroll
+		// while the row is in range. We deliberately do NOT render on refresh. A
+		// refresh fires when the scroll is idle (a resize, an embed loading, new
+		// content), so writing the row then would be the one moment a recompute is
+		// visible, and with no motion to mask it that reads as a jerk. The row simply
+		// self-corrects on the next scroll instead, where the movement hides it.
 		var st = ctx.ScrollTrigger.create({
 			trigger: el,
 			start: e1.start || 'clamp(top 100%)', // row top reaches the bottom of the viewport
 			end: e1.end || 'bottom -60%',         // row bottom is 60 per cent past the top
-			onUpdate: render,
-			onRefresh: render
+			onUpdate: render
 		});
 
 		ctx.addTrigger(st);

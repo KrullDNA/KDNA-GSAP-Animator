@@ -1,6 +1,6 @@
 === KDNA GSAP Animator ===
 Author: Krull Design & Advertising
-Version: 1.5.23
+Version: 1.5.24
 Requires: WordPress with Elementor (portfolio templates)
 Companion to: KDNA Seamless Portfolio Scroll
 
@@ -169,6 +169,23 @@ glide. Set it to 0 for a fully direct, one-to-one link to the scrollbar, which i
 crisp but can look stepped on a coarse mouse wheel. The side-sliding rows do not
 use it (see SIDE-SLIDING ROWS above): they are already one to one with the
 scrollbar and need no smoothing. After changing it, clear the page cache.
+
+JERK WHEN YOU STOP SCROLLING (GLOBAL REFRESHES)
+A different thing from a glide: a single sharp snap right as you stop. Its cause is
+a GLOBAL ScrollTrigger refresh (logged as "Global ScrollTrigger refresh (all
+triggers recalculated)"). A refresh re-syncs every scrubbed and pinned effect to
+the scrollbar in one step, so if one lands while you are parked on an effect, it
+snaps. ScrollTrigger's default fires a refresh on the window "resize" event, which
+a YouTube/Vimeo embed initialising, the marquee measuring, a scrollbar appearing,
+or DevTools docking all dispatch, so refreshes were firing constantly. From this
+version the engine refreshes only on deliberate events (visibilitychange,
+DOMContentLoaded, load) and handles genuine width resizes itself, debounced and
+without deferring the refresh to the moment you stop (which is what made it land as
+a jerk). The side-sliding rows also no longer recompute on a refresh at all (they
+self-correct on the next scroll, where the movement hides it). If you still see a
+"Resize ... refreshed" line with ?kdna_debug=1, note that resizing or docking the
+browser DevTools changes the viewport width and triggers it; real visitors with a
+fixed window will not hit it.
 
 MOVEMENT AFTER YOU STOP SCROLLING
 If the effects keep moving for a moment after you stop, first know what it is NOT.
